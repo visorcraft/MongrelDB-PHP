@@ -115,7 +115,10 @@ $txn->commit(idempotencyKey: 'order-20-create');
 
 ## Native query builder
 
-Conditions push down to the engine's specialized indexes:
+Conditions push down to the engine's specialized indexes. The builder accepts
+friendly aliases that are translated to the server's on-wire keys: `column`
+(-> `column_id`), `min`/`max` (-> `lo`/`hi`). The canonical keys are also
+accepted directly.
 
 ```php
 // Bitmap equality (low-cardinality columns)
@@ -128,13 +131,20 @@ $db->query('orders')
 
 // Full-text search (FM-index)
 $db->query('documents')
-    ->where('fm_contains', ['column' => 2, 'value' => 'database performance'])
+    ->where('fm_contains', ['column' => 2, 'pattern' => 'database performance'])
     ->limit(10)->execute();
 
 // Vector similarity search (HNSW)
 $db->query('embeddings')
     ->where('ann', ['column' => 2, 'query' => [0.1, 0.2, 0.3], 'k' => 10])
     ->execute();
+
+// Check whether a result was capped by the limit
+$query = $db->query('orders')->where('range', ['column' => 3, 'min' => 0])->limit(100);
+$rows = $query->execute();
+if ($query->truncated()) {
+    // result set hit the limit; more matches exist on the server
+}
 ```
 
 ## SQL
