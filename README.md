@@ -2,7 +2,7 @@
 
 A professional, pure-PHP client library for [MongrelDB](https://github.com/visorcraft/MongrelDB) — a fast embedded+server database with SQL, vector search, full-text search, and AI-native retrieval.
 
-Requires **PHP 8.4+**. No C extensions, no compilation. Install via Composer.
+Requires **PHP 8.5+**. No C extensions, no compilation. Install via Composer.
 
 ## Install
 
