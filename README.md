@@ -1,8 +1,19 @@
 # MongrelDB PHP Client
 
+[![PHP Version](https://img.shields.io/badge/PHP-%3E%3D8.4-777bb4.svg)](https://www.php.net/)
+[![Packagist](https://img.shields.io/packagist/v/visorcraft/mongreldb-php.svg)](https://packagist.org/packages/visorcraft/mongreldb-php)
+[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
+[![Tests](https://img.shields.io/badge/tests-273%20passing-brightgreen.svg)](#testing)
+
 A professional, pure-PHP client library for [MongrelDB](https://github.com/visorcraft/MongrelDB) — a fast embedded+server database with SQL, vector search, full-text search, and AI-native retrieval.
 
-Requires **PHP 8.5+**. No C extensions, no compilation. Install via Composer.
+## Requirements
+
+- **PHP 8.4 or newer** (PHP 8.5 supported with opt-in performance features)
+- **ext-curl** (default HTTP transport) and **ext-json** (always required)
+- A running [`mongreldb-server`](https://github.com/visorcraft/MongrelDB) daemon
+
+No C extensions and no compilation step. The optional [persistent cURL sharing](#performance-persistent-curl-sharing-php-85) feature requires PHP 8.5+ and degrades gracefully on 8.4.
 
 ## Install
 
@@ -206,6 +217,28 @@ try {
 }
 ```
 
+## Performance: persistent cURL sharing (PHP 8.5+)
+
+By default the client pools keep-alive connections **within** a single PHP
+request. On PHP 8.5+, you can opt in to sharing DNS resolution, TLS sessions,
+and the connection pool **across** requests (e.g. between PHP-FPM invocations)
+for further latency reductions on the same daemon host:
+
+```php
+use Visorcraft\MongrelDB\Database;
+
+// Enable with sensible defaults (DNS + TLS sessions + connection pool)
+$db = new Database('http://127.0.0.1:8453', persistentSharing: true);
+
+// Or pass an explicit list of CURL_LOCK_DATA_* constants
+use Visorcraft\MongrelDB\Transport\CurlTransport;
+$transport = new CurlTransport(persistentSharing: [\CURL_LOCK_DATA_DNS]);
+```
+
+This is **off by default** and silently degrades to per-request pooling on
+PHP 8.4. `CURL_LOCK_DATA_COOKIE` is rejected — it would leak cookies across
+requests and is unsafe for a stateless database client.
+
 ## Custom HTTP transport
 
 The client uses cURL by default. You can inject any PSR-7-compatible transport:
@@ -270,6 +303,36 @@ $db = new Database(client: $client);
 | `rollback(): void` | Discard all operations |
 | `count(): int` | Number of staged operations |
 
+## Testing
+
+The test suite uses PHPUnit 12 and is fully offline — it does **not** require a
+running daemon (a mock transport intercepts all HTTP calls).
+
+```sh
+composer install
+composer test              # runs the full suite
+vendor/bin/phpunit         # equivalent
+```
+
+The suite covers 273 tests across SQL-injection hardening, JSON edge cases
+(INF/NAN, malformed UTF-8, recursion), transport behavior, transaction state
+machines, and the optional persistent-sharing feature.
+
+## Contributing
+
+Contributions are welcome. Please:
+
+1. Open an issue first for non-trivial changes.
+2. Add focused tests near your change — the suite must stay green.
+3. Keep PHP 8.4 as the minimum supported version (PHP 8.5-only features must
+   degrade gracefully, detected at runtime via `function_exists`/`defined`).
+4. Match the existing style: strict types, `declare(strict_types=1)`, tabs,
+   `readonly` properties where applicable, and `#[\Override]` on overridden
+   methods.
+
 ## License
 
-MIT OR Apache-2.0
+Dual-licensed under the **MIT License** or the **Apache License, Version 2.0**,
+at your option. See [LICENSE](LICENSE) for the full text of both licenses.
+
+`SPDX-License-Identifier: MIT OR Apache-2.0`

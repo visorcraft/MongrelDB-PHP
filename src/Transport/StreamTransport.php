@@ -53,18 +53,24 @@ final class StreamTransport implements TransportInterface
             );
         }
 
-        // Parse status code from $http_response_header
+        // Parse status code and headers from the response. PHP 8.5 deprecated the
+        // auto-populated $http_response_header variable in favor of an explicit
+        // accessor; use it when available and fall back for older runtimes.
+        if (function_exists('http_get_last_response_headers')) {
+            $responseHeaderLines = http_get_last_response_headers() ?? [];
+        } else {
+            $responseHeaderLines = $http_response_header ?? [];
+        }
+
         $status = 500;
         $responseHeaders = [];
 
-        if (isset($http_response_header) && is_array($http_response_header)) {
-            foreach ($http_response_header as $header) {
-                if (preg_match('#^HTTP/\S+\s+(\d+)#', $header, $matches)) {
-                    $status = (int) $matches[1];
-                } elseif (str_contains($header, ': ')) {
-                    [$key, $value] = explode(': ', $header, 2);
-                    $responseHeaders[strtolower($key)] = $value;
-                }
+        foreach ($responseHeaderLines as $header) {
+            if (preg_match('#^HTTP/\S+\s+(\d+)#', $header, $matches)) {
+                $status = (int) $matches[1];
+            } elseif (str_contains($header, ': ')) {
+                [$key, $value] = explode(': ', $header, 2);
+                $responseHeaders[strtolower($key)] = $value;
             }
         }
 
