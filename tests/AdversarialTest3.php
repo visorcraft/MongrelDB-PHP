@@ -13,6 +13,7 @@ declare(strict_types=1);
 
 namespace Visorcraft\MongrelDB\Tests;
 
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Visorcraft\MongrelDB\Database;
 use Visorcraft\MongrelDB\MongrelDB;
@@ -44,9 +45,7 @@ final class AdversarialTest3 extends TestCase
 
     // ── SQL DDL escaping across ALL auth methods ────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function alter_password_escapes_single_quotes(): void
     {
         $transport = new MockTransport();
@@ -64,9 +63,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertStringContainsString("'new''pass''word'", $sql);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function drop_user_escapes_identifier(): void
     {
         $transport = new MockTransport();
@@ -80,9 +77,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertStringContainsString('"user""with""quotes"', $sql);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function set_user_admin_escapes_identifier(): void
     {
         $transport = new MockTransport();
@@ -97,9 +92,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertStringContainsString('ADMIN', $sql);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function create_role_escapes_identifier(): void
     {
         $transport = new MockTransport();
@@ -114,9 +107,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertStringContainsString('"role\'with; semicolon"', $sql);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function drop_role_escapes_identifier(): void
     {
         $transport = new MockTransport();
@@ -130,9 +121,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertStringContainsString('"r""--"', $sql);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function grant_role_escapes_both_identifiers(): void
     {
         $transport = new MockTransport();
@@ -146,9 +135,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertStringContainsString('"role""name" TO "user""name"', $sql);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function revoke_role_escapes_both_identifiers(): void
     {
         $transport = new MockTransport();
@@ -162,9 +149,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertStringContainsString('"c""d" FROM "a""b"', $sql);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function create_user_with_both_quotes_in_username(): void
     {
         $transport = new MockTransport();
@@ -184,9 +169,7 @@ final class AdversarialTest3 extends TestCase
 
     // ── URL path injection ──────────────────────────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function table_name_with_slash_in_url(): void
     {
         $transport = new MockTransport();
@@ -201,9 +184,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertSame('http://127.0.0.1:8453/tables/../admin/users', $lastRequest['url']);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function table_name_with_url_encoding_in_path(): void
     {
         $transport = new MockTransport();
@@ -216,9 +197,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertSame('http://127.0.0.1:8453/tables/%2e%2e/admin', $lastRequest['url']);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function count_with_slash_in_table_name(): void
     {
         $transport = new MockTransport();
@@ -232,9 +211,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertSame('http://127.0.0.1:8453/tables/orders/evil/count', $lastRequest['url']);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function drop_table_with_encoded_chars(): void
     {
         $transport = new MockTransport();
@@ -248,9 +225,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertStringEndsWith('/tables/table%20name', $lastRequest['url']);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function compact_table_with_special_chars(): void
     {
         $transport = new MockTransport();
@@ -268,9 +243,7 @@ final class AdversarialTest3 extends TestCase
 
     // ── JSON encoding edge cases ────────────────────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function cells_with_invalid_utf8_value(): void
     {
         $transport = new MockTransport();
@@ -285,9 +258,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertSame(1, $transport->requestCount);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function cells_with_nan_value(): void
     {
         $transport = new MockTransport();
@@ -295,17 +266,21 @@ final class AdversarialTest3 extends TestCase
         $db = $this->makeDatabase($transport);
 
         $nan = acos(1.01); // produces NAN
-        $db->put('orders', [1 => 1, 3 => $nan]);
+        // NAN has no JSON representation and no meaningful database value. The
+        // client must surface a clear QueryException rather than silently
+        // coercing it to 0 (which would corrupt data and hide bugs).
+        try {
+            $db->put('orders', [1 => 1, 3 => $nan]);
+            $this->fail('Expected QueryException for NAN cell value');
+        } catch (QueryException $e) {
+            $this->assertStringContainsString('JSON', $e->getMessage());
+        }
 
-        $lastRequest = $transport->getLastRequest();
-        $body = json_decode($lastRequest['body'], true);
-        // PHP json_encode converts NAN to 0 by default
-        $this->assertTrue($body['ops'][0]['put']['cells'][1] === 0 || is_float($body['ops'][0]['put']['cells'][1]));
+        // No request should have been sent for an un-encodable payload.
+        $this->assertSame(0, $transport->requestCount);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function post_with_recursive_array_throws(): void
     {
         $transport = new MockTransport();
@@ -315,13 +290,14 @@ final class AdversarialTest3 extends TestCase
         $recursive = [];
         $recursive['self'] = &$recursive;
 
-        $this->expectException(\JsonException::class);
+        // Recursive structures have no JSON representation; the client wraps the
+        // underlying JsonException in a typed QueryException so callers get a
+        // consistent, actionable error at the client boundary.
+        $this->expectException(QueryException::class);
         $client->post('/sql', $recursive);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function cells_with_object_value(): void
     {
         $transport = new MockTransport();
@@ -337,12 +313,11 @@ final class AdversarialTest3 extends TestCase
 
         $lastRequest = $transport->getLastRequest();
         $body = json_decode($lastRequest['body'], true);
-        $this->assertSame(['name' => 'test', 'value' => 42], $body['ops'][0]['put']['cells'][1]);
+        // Flat cells are [col_id, val, ...]; column 2's object is at index 3.
+        $this->assertSame(['name' => 'test', 'value' => 42], $body['ops'][0]['put']['cells'][3]);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function cells_with_binary_string(): void
     {
         $transport = new MockTransport();
@@ -358,9 +333,7 @@ final class AdversarialTest3 extends TestCase
 
     // ── Empty/null method arguments ─────────────────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function create_table_empty_name(): void
     {
         $transport = new MockTransport();
@@ -374,9 +347,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertSame('', $body['name']);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function create_table_empty_columns(): void
     {
         $transport = new MockTransport();
@@ -390,9 +361,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertSame([], $body['columns']);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function put_empty_table_name(): void
     {
         $transport = new MockTransport();
@@ -406,9 +375,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertSame('', $body['ops'][0]['put']['table']);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function drop_table_empty_name(): void
     {
         $transport = new MockTransport();
@@ -422,9 +389,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertSame('DELETE', $lastRequest['method']);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function count_empty_table_name(): void
     {
         $transport = new MockTransport();
@@ -440,9 +405,7 @@ final class AdversarialTest3 extends TestCase
 
     // ── Transaction lifecycle independence ──────────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function transaction_works_after_database_unset(): void
     {
         $transport = new MockTransport();
@@ -459,9 +422,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertSame(1, $transport->requestCount);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function two_transactions_same_client(): void
     {
         $transport = new MockTransport();
@@ -484,9 +445,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertSame(2, $transport->requestCount);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function transaction_count_after_staging(): void
     {
         $client = $this->makeClient(new MockTransport());
@@ -505,9 +464,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertSame(5, $txn->count());
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function transaction_rollback_then_count(): void
     {
         $client = $this->makeClient(new MockTransport());
@@ -522,9 +479,7 @@ final class AdversarialTest3 extends TestCase
 
     // ── SQL return shape handling ───────────────────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function sql_returns_json_array(): void
     {
         $transport = new MockTransport();
@@ -535,9 +490,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertCount(2, $result);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function sql_returns_json_object(): void
     {
         $transport = new MockTransport();
@@ -548,9 +501,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertSame('ok', $result['status']);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function sql_returns_binary_arrow_ipc(): void
     {
         $transport = new MockTransport();
@@ -563,9 +514,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertSame([], $result);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function sql_returns_json_null(): void
     {
         $transport = new MockTransport();
@@ -577,9 +526,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertSame([], $result);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function sql_returns_json_boolean(): void
     {
         $transport = new MockTransport();
@@ -591,9 +538,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertSame([], $result);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function sql_returns_json_number(): void
     {
         $transport = new MockTransport();
@@ -607,9 +552,7 @@ final class AdversarialTest3 extends TestCase
 
     // ── Stream transport ────────────────────────────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function stream_transport_construct(): void
     {
         $st = new \Visorcraft\MongrelDB\Transport\StreamTransport(timeout: 60);
@@ -619,18 +562,14 @@ final class AdversarialTest3 extends TestCase
 
     // ── CurlTransport header parsing ────────────────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function curl_transport_construct_with_defaults(): void
     {
         $ct = new \Visorcraft\MongrelDB\Transport\CurlTransport();
         $this->assertInstanceOf(\Visorcraft\MongrelDB\Transport\CurlTransport::class, $ct);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function curl_transport_construct_with_custom_timeouts(): void
     {
         $ct = new \Visorcraft\MongrelDB\Transport\CurlTransport(timeout: 120, connectTimeout: 30);
@@ -639,9 +578,7 @@ final class AdversarialTest3 extends TestCase
 
     // ── Concurrent Database instances ───────────────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function two_databases_different_auth_same_transport(): void
     {
         $transport = new MockTransport();
@@ -659,9 +596,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertSame('Bearer token2', $requests[1]['headers']['Authorization']);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function database_with_preconfigured_client(): void
     {
         $transport = new MockTransport();
@@ -678,9 +613,7 @@ final class AdversarialTest3 extends TestCase
 
     // ── Auth method combinations ────────────────────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function token_takes_precedence_over_username(): void
     {
         $transport = new MockTransport();
@@ -701,9 +634,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertSame('Bearer my-token', $lastRequest['headers']['Authorization']);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function basic_auth_without_password(): void
     {
         $transport = new MockTransport();
@@ -724,9 +655,7 @@ final class AdversarialTest3 extends TestCase
 
     // ── Procedure error paths ───────────────────────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function call_procedure_on_nonexistent_throws_404(): void
     {
         $transport = new MockTransport();
@@ -739,9 +668,7 @@ final class AdversarialTest3 extends TestCase
         $db->callProcedure('ghost');
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function procedure_on_nonexistent_throws_404(): void
     {
         $transport = new MockTransport();
@@ -754,9 +681,7 @@ final class AdversarialTest3 extends TestCase
         $db->procedure('ghost');
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function create_procedure_validation_error(): void
     {
         $transport = new MockTransport();
@@ -773,9 +698,7 @@ final class AdversarialTest3 extends TestCase
 
     // ── Trigger/error response variations ───────────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function error_400_with_trigger_validation_code(): void
     {
         $transport = new MockTransport();
@@ -792,9 +715,7 @@ final class AdversarialTest3 extends TestCase
         }
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function error_409_with_conflict_code(): void
     {
         $transport = new MockTransport();
@@ -812,9 +733,7 @@ final class AdversarialTest3 extends TestCase
         }
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function error_409_with_internal_code(): void
     {
         $transport = new MockTransport();
@@ -829,9 +748,7 @@ final class AdversarialTest3 extends TestCase
 
     // ── Response object edge cases ──────────────────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function response_with_empty_headers_array(): void
     {
         $response = new Response(200, '{"ok":true}', []);
@@ -839,9 +756,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertSame([], $response->headers);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function response_json_with_deeply_nested_structure(): void
     {
         $deep = json_encode(['a' => ['b' => ['c' => ['d' => ['e' => 'deep']]]]]);
@@ -849,18 +764,14 @@ final class AdversarialTest3 extends TestCase
         $this->assertSame('deep', $response->json()['a']['b']['c']['d']['e']);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function response_status_201_is_successful(): void
     {
         $response = new Response(201, '');
         $this->assertTrue($response->isSuccessful());
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function response_status_204_empty_body(): void
     {
         $response = new Response(204, '');
@@ -870,9 +781,7 @@ final class AdversarialTest3 extends TestCase
 
     // ── QueryBuilder immutability ───────────────────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function query_builder_chain_does_not_mutate_previous_state(): void
     {
         $transport = new MockTransport();
@@ -890,9 +799,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertArrayNotHasKey('limit', $payload);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function query_builder_fluent_returns_same_instance(): void
     {
         $transport = new MockTransport();
@@ -906,9 +813,7 @@ final class AdversarialTest3 extends TestCase
 
     // ── Database default constructor ────────────────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function database_default_url(): void
     {
         $transport = new MockTransport();
@@ -921,9 +826,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertSame('http://127.0.0.1:8453/health', $lastRequest['url']);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function database_constructor_with_url_and_token(): void
     {
         $transport = new MockTransport();
@@ -941,18 +844,14 @@ final class AdversarialTest3 extends TestCase
 
     // ── MongrelDB getUrl ────────────────────────────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function get_url_returns_original_url(): void
     {
         $client = new MongrelDB('https://mongreldb.example.com:8453');
         $this->assertSame('https://mongreldb.example.com:8453', $client->getUrl());
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function get_url_with_trailing_slash(): void
     {
         $client = new MongrelDB('http://localhost:8453/');
@@ -961,9 +860,7 @@ final class AdversarialTest3 extends TestCase
 
     // ── Error message extraction variations ────────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function error_message_from_plain_text_with_whitespace(): void
     {
         $transport = new MockTransport();
@@ -978,9 +875,7 @@ final class AdversarialTest3 extends TestCase
         }
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function error_message_from_json_without_error_key(): void
     {
         $transport = new MockTransport();
@@ -996,9 +891,7 @@ final class AdversarialTest3 extends TestCase
         }
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function error_message_from_json_with_error_string_not_object(): void
     {
         $transport = new MockTransport();
@@ -1017,9 +910,7 @@ final class AdversarialTest3 extends TestCase
 
     // ── Constraint exception op_index extraction ────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function constraint_exception_without_op_index(): void
     {
         $transport = new MockTransport();
@@ -1037,9 +928,7 @@ final class AdversarialTest3 extends TestCase
         }
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function constraint_exception_with_op_index(): void
     {
         $transport = new MockTransport();
@@ -1058,9 +947,7 @@ final class AdversarialTest3 extends TestCase
 
     // ── Mixed type cell values ─────────────────────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function cells_mixed_types_int_float_string_null_bool(): void
     {
         $transport = new MockTransport();
@@ -1088,9 +975,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertFalse($cells[11]);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function cells_with_non_sequential_column_ids(): void
     {
         $transport = new MockTransport();
@@ -1107,9 +992,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertSame([1, 'a', 100, 'b', 255, 'c'], $cells);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function upsert_cells_with_many_columns(): void
     {
         $transport = new MockTransport();
@@ -1133,9 +1016,7 @@ final class AdversarialTest3 extends TestCase
 
     // ── Upsert edge: update_cells with different column IDs than insert ─────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function upsert_update_cells_different_ids_than_insert(): void
     {
         $transport = new MockTransport();
@@ -1150,15 +1031,14 @@ final class AdversarialTest3 extends TestCase
 
         // Insert cells: [1, 1, 2, 'name']
         $this->assertSame([1, 1, 2, 'name'], $op['cells']);
-        // Update cells: [3, 99.0, 4, 'updated']
-        $this->assertSame([3, 99.0, 4, 'updated'], $op['update_cells']);
+        // Update cells: [3, 99.0, 4, 'updated']. JSON round-trips 99.0 as 99,
+        // so compare loosely to allow the type relaxation.
+        $this->assertEquals([3, 99.0, 4, 'updated'], $op['update_cells']);
     }
 
     // ── Health check multiple calls ─────────────────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function health_check_multiple_calls_makes_multiple_requests(): void
     {
         $transport = new MockTransport();
@@ -1177,9 +1057,7 @@ final class AdversarialTest3 extends TestCase
 
     // ── Post with various data types ────────────────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function post_with_string_data(): void
     {
         $transport = new MockTransport();
@@ -1193,9 +1071,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertSame('SELECT 1', $body['sql']);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function post_with_integer_data(): void
     {
         $transport = new MockTransport();
@@ -1209,9 +1085,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertSame(42, $body['value']);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function put_request_with_null_body(): void
     {
         $transport = new MockTransport();
@@ -1224,9 +1098,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertNull($lastRequest['body']);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function put_request_with_data(): void
     {
         $transport = new MockTransport();
@@ -1242,9 +1114,7 @@ final class AdversarialTest3 extends TestCase
 
     // ─– Auth SQL DDL: users() and roles() response parsing ─────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function users_extracts_username_from_sql_response(): void
     {
         $transport = new MockTransport();
@@ -1258,9 +1128,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertSame(['admin', 'alice'], $users);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function roles_extracts_name_from_sql_response(): void
     {
         $transport = new MockTransport();
@@ -1274,9 +1142,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertSame(['analyst', 'admin'], $roles);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function users_empty_response(): void
     {
         $transport = new MockTransport();
@@ -1287,9 +1153,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertSame([], $users);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function users_missing_username_key(): void
     {
         $transport = new MockTransport();
@@ -1305,36 +1169,28 @@ final class AdversarialTest3 extends TestCase
 
     // ── Error status codes at boundaries ───────────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function status_199_not_successful(): void
     {
         $response = new Response(199, '');
         $this->assertFalse($response->isSuccessful());
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function status_200_successful(): void
     {
         $response = new Response(200, '');
         $this->assertTrue($response->isSuccessful());
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function status_299_successful(): void
     {
         $response = new Response(299, '');
         $this->assertTrue($response->isSuccessful());
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function status_300_not_successful(): void
     {
         $response = new Response(300, '');

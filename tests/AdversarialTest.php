@@ -16,6 +16,7 @@ declare(strict_types=1);
 
 namespace Visorcraft\MongrelDB\Tests;
 
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Visorcraft\MongrelDB\Database;
 use Visorcraft\MongrelDB\MongrelDB;
@@ -103,9 +104,7 @@ final class AdversarialTest extends TestCase
 
     // ── SQL Injection ───────────────────────────────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function sql_injection_in_username(): void
     {
         $transport = new MockTransport();
@@ -118,14 +117,20 @@ final class AdversarialTest extends TestCase
         $lastRequest = $transport->getLastRequest();
         $sql = json_decode($lastRequest['body'], true)['sql'];
 
-        // The username must be quoted — the quote function must escape the single quote
-        $this->assertStringContainsString('"alice\'\'; DROP USER admin; --"', $sql);
-        $this->assertStringNotContainsString("alice'; DROP USER admin", $sql);
+        // The entire malicious string must be contained within ONE double-quoted
+        // identifier. Only " is doubled inside "..." (per SQL); a ' is literal.
+        // The injection is neutralized because the ; is part of the username
+        // literal, not a statement separator.
+        $this->assertStringContainsString('"alice\'; DROP USER admin; --"', $sql);
+        // The statement must contain exactly one CREATE USER clause — the DROP
+        // must NOT have escaped the identifier into a second statement. The
+        // presence of WITH PASSWORD after the identifier confirms the parser sees
+        // a single user name.
+        $this->assertStringContainsString('WITH PASSWORD', $sql);
+        $this->assertSame(1, substr_count($sql, 'CREATE USER'));
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function sql_injection_in_password(): void
     {
         $transport = new MockTransport();
@@ -142,9 +147,7 @@ final class AdversarialTest extends TestCase
         $this->assertStringContainsString("'pw''; DROP USER admin; --'", $sql);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function sql_injection_in_role_name(): void
     {
         $transport = new MockTransport();
@@ -161,9 +164,7 @@ final class AdversarialTest extends TestCase
         $this->assertStringContainsString('"role""; DROP TABLE orders; --"', $sql);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function sql_injection_in_grant_permission(): void
     {
         $transport = new MockTransport();
@@ -180,9 +181,7 @@ final class AdversarialTest extends TestCase
         $this->assertStringContainsString('GRANT select:orders TO "analyst"', $sql);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function sql_injection_backslash_in_username(): void
     {
         $transport = new MockTransport();
@@ -200,9 +199,7 @@ final class AdversarialTest extends TestCase
 
     // ── Input Validation ───────────────────────────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function empty_username_should_not_crash(): void
     {
         $transport = new MockTransport();
@@ -215,9 +212,7 @@ final class AdversarialTest extends TestCase
         $this->assertSame(1, $transport->requestCount);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function empty_password_should_not_crash(): void
     {
         $transport = new MockTransport();
@@ -229,9 +224,7 @@ final class AdversarialTest extends TestCase
         $this->assertSame(1, $transport->requestCount);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function null_byte_in_username(): void
     {
         $transport = new MockTransport();
@@ -245,9 +238,7 @@ final class AdversarialTest extends TestCase
         $this->assertNotNull($lastRequest);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function very_long_username(): void
     {
         $transport = new MockTransport();
@@ -260,9 +251,7 @@ final class AdversarialTest extends TestCase
         $this->assertSame(1, $transport->requestCount);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function unicode_username(): void
     {
         $transport = new MockTransport();
@@ -275,9 +264,7 @@ final class AdversarialTest extends TestCase
         $this->assertNotNull($lastRequest);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function emoji_in_cell_value(): void
     {
         $transport = new MockTransport();
@@ -286,15 +273,15 @@ final class AdversarialTest extends TestCase
 
         $db->put('orders', [1 => 1, 2 => '🎉 party order']);
 
-        // Verify the emoji was JSON-encoded correctly
+        // Verify the emoji was JSON-encoded correctly.
+        // Flat cells are [col_id, val, col_id, val, ...], so column 2's value
+        // is at index 3.
         $lastRequest = $transport->getLastRequest();
         $body = json_decode($lastRequest['body'], true);
-        $this->assertSame('🎉 party order', $body['ops'][0]['put']['cells'][1]);
+        $this->assertSame('🎉 party order', $body['ops'][0]['put']['cells'][3]);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function negative_number_as_cell_value(): void
     {
         $transport = new MockTransport();
@@ -305,29 +292,32 @@ final class AdversarialTest extends TestCase
 
         $lastRequest = $transport->getLastRequest();
         $body = json_decode($lastRequest['body'], true);
-        $this->assertSame(-42, $body['ops'][0]['put']['cells'][0]);
+        // Flat cells are [col_id, val, ...]; column 1's value (-42) is at index 1.
+        $this->assertSame(-42, $body['ops'][0]['put']['cells'][1]);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function float_with_special_values(): void
     {
         $transport = new MockTransport();
         $transport->addResponse(new Response(200, '{"status":"committed","epoch":1,"results":[]}'));
         $db = $this->makeDatabase($transport);
 
-        // INF and NaN should be JSON-encoded (PHP json_encode handles them)
-        $db->put('orders', [1 => 1, 2 => INF]);
+        // INF and NAN have no valid JSON representation and cannot be stored.
+        // The client must surface a clear QueryException rather than a raw
+        // JsonException from deep in the request path.
+        try {
+            $db->put('orders', [1 => 1, 2 => INF]);
+            $this->fail('Expected QueryException for INF cell value');
+        } catch (QueryException $e) {
+            $this->assertStringContainsString('JSON', $e->getMessage());
+        }
 
-        $lastRequest = $transport->getLastRequest();
-        // The request should have been made — json_encode may convert INF to 0
-        $this->assertSame(1, $transport->requestCount);
+        // The request must not have been sent for an un-encodable payload.
+        $this->assertSame(0, $transport->requestCount);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function empty_cells_array(): void
     {
         $transport = new MockTransport();
@@ -343,9 +333,7 @@ final class AdversarialTest extends TestCase
 
     // ── Transaction Error Handling ──────────────────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function transaction_double_commit(): void
     {
         $transport = new MockTransport();
@@ -361,9 +349,7 @@ final class AdversarialTest extends TestCase
         $txn->commit();
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function transaction_rollback_after_commit(): void
     {
         $transport = new MockTransport();
@@ -378,9 +364,7 @@ final class AdversarialTest extends TestCase
         $txn->rollback();
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function transaction_commit_empty(): void
     {
         $transport = new MockTransport();
@@ -394,9 +378,7 @@ final class AdversarialTest extends TestCase
         $this->assertSame(0, $transport->requestCount);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function transaction_rollback_discards_ops(): void
     {
         $transport = new MockTransport();
@@ -416,9 +398,7 @@ final class AdversarialTest extends TestCase
         $this->assertSame(0, $transport->requestCount);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function transaction_with_idempotency_key(): void
     {
         $transport = new MockTransport();
@@ -436,9 +416,7 @@ final class AdversarialTest extends TestCase
 
     // ── HTTP Error Mapping ─────────────────────────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function error_400_maps_to_query_exception(): void
     {
         $transport = new MockTransport();
@@ -450,9 +428,7 @@ final class AdversarialTest extends TestCase
         $client->get('/tables');
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function error_401_maps_to_auth_exception(): void
     {
         $transport = new MockTransport();
@@ -463,9 +439,7 @@ final class AdversarialTest extends TestCase
         $client->get('/tables');
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function error_403_maps_to_auth_exception(): void
     {
         $transport = new MockTransport();
@@ -476,9 +450,7 @@ final class AdversarialTest extends TestCase
         $client->get('/tables');
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function error_404_maps_to_not_found_exception(): void
     {
         $transport = new MockTransport();
@@ -489,9 +461,7 @@ final class AdversarialTest extends TestCase
         $client->get('/tables/ghost');
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function error_409_maps_to_constraint_exception(): void
     {
         $transport = new MockTransport();
@@ -518,9 +488,7 @@ final class AdversarialTest extends TestCase
         }
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function error_409_plain_text_body(): void
     {
         $transport = new MockTransport();
@@ -536,9 +504,7 @@ final class AdversarialTest extends TestCase
         }
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function error_500_maps_to_query_exception(): void
     {
         $transport = new MockTransport();
@@ -549,9 +515,7 @@ final class AdversarialTest extends TestCase
         $client->get('/tables');
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function error_with_json_envelope(): void
     {
         $transport = new MockTransport();
@@ -574,9 +538,7 @@ final class AdversarialTest extends TestCase
         }
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function empty_error_body(): void
     {
         $transport = new MockTransport();
@@ -593,9 +555,7 @@ final class AdversarialTest extends TestCase
 
     // ── Query Builder ───────────────────────────────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function query_builder_no_conditions(): void
     {
         $transport = new MockTransport();
@@ -611,9 +571,7 @@ final class AdversarialTest extends TestCase
         $this->assertArrayNotHasKey('conditions', $body);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function query_builder_multiple_conditions(): void
     {
         $transport = new MockTransport();
@@ -635,9 +593,7 @@ final class AdversarialTest extends TestCase
         $this->assertSame(50, $body['limit']);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function query_builder_empty_table_name(): void
     {
         $transport = new MockTransport();
@@ -653,9 +609,7 @@ final class AdversarialTest extends TestCase
 
     // ── Connection edge cases ───────────────────────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function connection_refused_throws_connection_exception(): void
     {
         // Use a real transport that will fail to connect
@@ -665,9 +619,7 @@ final class AdversarialTest extends TestCase
         $client->get('/health');
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function health_check_returns_false_on_error(): void
     {
         $transport = new MockTransport();
@@ -677,9 +629,7 @@ final class AdversarialTest extends TestCase
         $this->assertFalse($client->health());
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function health_check_returns_true_on_success(): void
     {
         $transport = new MockTransport();
@@ -691,9 +641,7 @@ final class AdversarialTest extends TestCase
 
     // ── Auth header construction ────────────────────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function bearer_token_sets_authorization_header(): void
     {
         $transport = new MockTransport();
@@ -710,9 +658,7 @@ final class AdversarialTest extends TestCase
         $this->assertSame('Bearer my-secret', $lastRequest['headers']['Authorization']);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function basic_auth_sets_authorization_header(): void
     {
         $transport = new MockTransport();
@@ -731,9 +677,7 @@ final class AdversarialTest extends TestCase
         $this->assertSame($expected, $lastRequest['headers']['Authorization']);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function no_auth_when_neither_token_nor_username(): void
     {
         $transport = new MockTransport();
@@ -749,9 +693,7 @@ final class AdversarialTest extends TestCase
         $this->assertArrayNotHasKey('Authorization', $lastRequest['headers']);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function password_with_special_chars_in_basic_auth(): void
     {
         $transport = new MockTransport();
@@ -772,9 +714,7 @@ final class AdversarialTest extends TestCase
 
     // ── URL construction ────────────────────────────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function url_with_trailing_slash(): void
     {
         $transport = new MockTransport();
@@ -790,9 +730,7 @@ final class AdversarialTest extends TestCase
         $this->assertSame('http://127.0.0.1:8453/health', $lastRequest['url']);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function url_without_trailing_slash(): void
     {
         $transport = new MockTransport();
@@ -808,9 +746,7 @@ final class AdversarialTest extends TestCase
         $this->assertSame('http://127.0.0.1:8453/health', $lastRequest['url']);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function path_with_leading_slash(): void
     {
         $transport = new MockTransport();
@@ -823,9 +759,7 @@ final class AdversarialTest extends TestCase
         $this->assertSame('http://127.0.0.1:8453/tables/orders', $lastRequest['url']);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function path_without_leading_slash(): void
     {
         $transport = new MockTransport();
@@ -840,9 +774,7 @@ final class AdversarialTest extends TestCase
 
     // ── Cells conversion ────────────────────────────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function cells_with_string_keys_are_handled(): void
     {
         $transport = new MockTransport();
@@ -861,9 +793,7 @@ final class AdversarialTest extends TestCase
         $this->assertContains('Alice', $cells);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function cells_with_nested_array_value(): void
     {
         $transport = new MockTransport();
@@ -877,13 +807,12 @@ final class AdversarialTest extends TestCase
         $body = json_decode($lastRequest['body'], true);
         $cells = $body['ops'][0]['put']['cells'];
 
-        // The nested array should be preserved as a JSON array
-        $this->assertSame(['nested', 'array'], $cells[1]);
+        // The nested array should be preserved as a JSON array.
+        // Flat cells are [col_id, val, ...]; column 2's value is at index 3.
+        $this->assertSame(['nested', 'array'], $cells[3]);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function cells_with_null_value(): void
     {
         $transport = new MockTransport();
@@ -896,13 +825,12 @@ final class AdversarialTest extends TestCase
         $body = json_decode($lastRequest['body'], true);
         $cells = $body['ops'][0]['put']['cells'];
 
-        // null should be preserved
-        $this->assertNull($cells[1]);
+        // null should be preserved. Flat cells are [col_id, val, ...];
+        // [1=>1, 4=>null] flattens to [1,1,4,null], so null is at index 3.
+        $this->assertNull($cells[3]);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function cells_with_boolean_value(): void
     {
         $transport = new MockTransport();
@@ -915,15 +843,15 @@ final class AdversarialTest extends TestCase
         $body = json_decode($lastRequest['body'], true);
         $cells = $body['ops'][0]['put']['cells'];
 
-        $this->assertTrue($cells[1]);
-        $this->assertFalse($cells[3]);
+        // Flat cells are [col_id, val, ...]; [1=>1,5=>true,6=>false]
+        // flattens to [1,1,5,true,6,false].
+        $this->assertTrue($cells[3]);
+        $this->assertFalse($cells[5]);
     }
 
     // ── Stored procedure edge cases ─────────────────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function call_procedure_with_empty_args(): void
     {
         $transport = new MockTransport();
@@ -943,9 +871,7 @@ final class AdversarialTest extends TestCase
         $this->assertSame(42, $result);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function call_procedure_with_complex_args(): void
     {
         $transport = new MockTransport();
@@ -968,9 +894,7 @@ final class AdversarialTest extends TestCase
 
     // ── SQL escape edge cases ────────────────────────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function password_with_single_quote_escaped(): void
     {
         $transport = new MockTransport();
@@ -986,9 +910,7 @@ final class AdversarialTest extends TestCase
         $this->assertStringContainsString("'my''password'", $sql);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function password_with_backslash_not_special(): void
     {
         $transport = new MockTransport();
@@ -1004,9 +926,7 @@ final class AdversarialTest extends TestCase
         $this->assertStringContainsString("back\\slash", $sql);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function username_with_double_quote_escaped(): void
     {
         $transport = new MockTransport();
@@ -1022,32 +942,29 @@ final class AdversarialTest extends TestCase
         $this->assertStringContainsString('"user""name"', $sql);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function grant_permission_injection_attempt(): void
     {
         $transport = new MockTransport();
         $transport->addResponse(new Response(200, '{}'));
         $db = $this->makeDatabase($transport);
 
-        // Attempt to inject through the permission string
-        $db->grantPermission('role', "select:orders; DROP USER admin; --");
+        // The client-side validatePermission() guard must reject injection
+        // attempts in the permission string before any request is sent.
+        try {
+            $db->grantPermission('role', "select:orders; DROP USER admin; --");
+            $this->fail('Expected InvalidArgumentException for injected permission');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertStringContainsString('select:orders; DROP USER admin', $e->getMessage());
+        }
 
-        $lastRequest = $transport->getLastRequest();
-        $sql = json_decode($lastRequest['body'], true)['sql'];
-
-        // The permission string is passed raw after GRANT — this IS a potential issue
-        // if the server doesn't validate it. The client should document this.
-        // The server-side parse_perm function handles validation.
-        $this->assertStringContainsString('GRANT select:orders; DROP USER admin; -- TO "role"', $sql);
+        // No request should have reached the transport.
+        $this->assertSame(0, $transport->requestCount);
     }
 
     // ── Response parsing edge cases ─────────────────────────────────────────
 
-    /**
-     * @test
-     */
+    #[Test]
     public function response_json_with_trailing_data(): void
     {
         $transport = new MockTransport();
@@ -1060,9 +977,7 @@ final class AdversarialTest extends TestCase
         $response->json();
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function sql_returns_empty_for_empty_body(): void
     {
         $transport = new MockTransport();
@@ -1073,9 +988,7 @@ final class AdversarialTest extends TestCase
         $this->assertSame([], $result);
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function count_extracts_integer(): void
     {
         $transport = new MockTransport();
@@ -1085,9 +998,7 @@ final class AdversarialTest extends TestCase
         $this->assertSame(42, $db->count('orders'));
     }
 
-    /**
-     * @test
-     */
+    #[Test]
     public function tables_returns_string_array(): void
     {
         $transport = new MockTransport();

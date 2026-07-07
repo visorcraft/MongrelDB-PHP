@@ -33,11 +33,14 @@ final class MongrelDB
     /**
      * Create a new MongrelDB client.
      *
-     * @param string               $url       Daemon base URL (e.g., 'http://127.0.0.1:8453')
-     * @param ?string              $token     Bearer token (for --auth-token mode)
-     * @param ?string              $username  Username (for --auth-users mode)
-     * @param ?string              $password  Password (for --auth-users mode)
-     * @param ?TransportInterface  $transport Custom HTTP transport (defaults to cURL)
+     * @param string               $url                Daemon base URL (e.g., 'http://127.0.0.1:8453')
+     * @param ?string              $token              Bearer token (for --auth-token mode)
+     * @param ?string              $username           Username (for --auth-users mode)
+     * @param ?string              $password           Password (for --auth-users mode)
+     * @param ?TransportInterface  $transport          Custom HTTP transport (defaults to cURL)
+     * @param bool|array<int,int>  $persistentSharing  Persistent cURL share handle (PHP 8.5+).
+     *   Ignored unless the default cURL transport is used. See
+     *   {@see \Visorcraft\MongrelDB\Transport\CurlTransport::__construct()}.
      */
     public function __construct(
         private readonly string $url,
@@ -45,15 +48,16 @@ final class MongrelDB
         ?string $username = null,
         ?string $password = null,
         ?TransportInterface $transport = null,
+        bool|array $persistentSharing = false,
     ) {
-        $this->transport = $transport ?? new CurlTransport();
+        $this->transport = $transport ?? new CurlTransport(persistentSharing: $persistentSharing);
 
         $headers = ['Accept' => 'application/json'];
 
         if ($token !== null) {
             $headers['Authorization'] = "Bearer {$token}";
         } elseif ($username !== null) {
-            $credentials = base64_encode("{$username}:{$password ?? ''}");
+            $credentials = base64_encode("{$username}:" . ($password ?? ''));
             $headers['Authorization'] = "Basic {$credentials}";
         }
 
@@ -86,7 +90,7 @@ final class MongrelDB
      */
     public function post(string $path, mixed $data = null, array $headers = []): Response
     {
-        $body = $data !== null ? json_encode($data, \JSON_THROW_ON_ERROR) : null;
+        $body = $data !== null ? $this->encodeJson($data) : null;
 
         return $this->request('POST', $path, $headers, $body);
     }
@@ -96,7 +100,7 @@ final class MongrelDB
      */
     public function put(string $path, mixed $data = null, array $headers = []): Response
     {
-        $body = $data !== null ? json_encode($data, \JSON_THROW_ON_ERROR) : null;
+        $body = $data !== null ? $this->encodeJson($data) : null;
 
         return $this->request('PUT', $path, $headers, $body);
     }
@@ -107,6 +111,36 @@ final class MongrelDB
     public function delete(string $path, array $headers = []): Response
     {
         return $this->request('DELETE', $path, $headers);
+    }
+
+    /**
+     * JSON-encode a request body with graceful recovery for malformed UTF-8 and
+     * a clear, typed error for genuinely non-encodable values.
+     *
+     * Encoding policy:
+     *   - Malformed UTF-8 bytes are substituted with the U+FFFD replacement
+     *     character (JSON_INVALID_UTF8_SUBSTITUTE). This is recoverable — the
+     *     surrounding data is still valid and meaningful, and refusing the whole
+     *     request over one bad byte would be disproportionate.
+     *   - INF, NAN, and recursive structures have no JSON representation and no
+     *     meaningful database value. Coercing them silently would corrupt data,
+     *     so they raise a QueryException at the client boundary.
+     *
+     * @throws QueryException If the value cannot be JSON-encoded
+     */
+    private function encodeJson(mixed $data): string
+    {
+        try {
+            return json_encode(
+                $data,
+                \JSON_THROW_ON_ERROR | \JSON_INVALID_UTF8_SUBSTITUTE,
+            );
+        } catch (\JsonException $e) {
+            throw new QueryException(
+                'Request payload cannot be JSON-encoded: ' . $e->getMessage()
+                . '. (INF, NAN, and recursive structures have no JSON representation.)',
+            );
+        }
     }
 
     /**

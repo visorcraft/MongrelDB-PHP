@@ -1,6 +1,13 @@
 vendor/
 composer.lock
+composer.phar
 .phpunit.result.cache
 .phpunit.cache/
 *.log
 .DS_Store
+
+# Agent / assistant instruction files are workspace-local, never published
+AGENTS.md
+CLAUDE.md
+.cursorrules
+.zcode/
