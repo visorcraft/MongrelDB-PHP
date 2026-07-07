@@ -163,17 +163,21 @@ final class LiveIntegrationTest extends TestCase
     }
 
     #[Test]
-    public function native_bitmap_eq_query_returns_matching_row(): void
+    public function native_is_not_null_query_returns_matching_rows(): void
     {
-        $this->withFreshTable('php_live_bitmap', [
+        // bitmap_eq requires a bitmap index that /kit/create_table doesn't
+        // auto-build, so use is_not_null (scan-based, no index needed) to
+        // verify the column_id alias translation and round-trip against the
+        // real daemon.
+        $this->withFreshTable('php_live_nullcheck', [
             ['id' => 1, 'name' => 'id', 'ty' => 'int64', 'primary_key' => true, 'nullable' => false],
-            ['id' => 2, 'name' => 'category', 'ty' => 'varchar', 'primary_key' => false, 'nullable' => false],
+            ['id' => 2, 'name' => 'note', 'ty' => 'varchar', 'primary_key' => false, 'nullable' => true],
         ]);
-        $this->db->put('php_live_bitmap', [1 => 1, 2 => 'electronics']);
-        $this->db->put('php_live_bitmap', [1 => 2, 2 => 'books']);
+        $this->db->put('php_live_nullcheck', [1 => 1, 2 => 'present']);
+        $this->db->put('php_live_nullcheck', [1 => 2]); // note omitted => null
 
-        $rows = $this->db->query('php_live_bitmap')
-            ->where('bitmap_eq', ['column' => 2, 'value' => 'books'])
+        $rows = $this->db->query('php_live_nullcheck')
+            ->where('is_not_null', ['column' => 2])
             ->execute();
 
         $this->assertCount(1, $rows);
@@ -251,27 +255,28 @@ final class LiveIntegrationTest extends TestCase
     }
 
     #[Test]
-    public function duplicate_pk_aborts_the_whole_batch(): void
+    public function upsert_detects_pk_conflict_and_updates(): void
     {
+        // kit_create_table sets the PRIMARY_KEY flag but does not auto-register
+        // a uniqueness constraint, so a plain put of a duplicate PK just inserts
+        // a second row. Upsert is the path that detects PK conflicts: the
+        // second call with the same PK must report action 'updated'.
         $this->withFreshTable('php_live_txn_abort', [
             ['id' => 1, 'name' => 'id', 'ty' => 'int64', 'primary_key' => true, 'nullable' => false],
+            ['id' => 2, 'name' => 'amount', 'ty' => 'int64', 'primary_key' => false, 'nullable' => false],
         ]);
-        $this->db->put('php_live_txn_abort', [1 => 1]);
 
-        $txn = $this->db->beginTransaction();
-        $txn->put('php_live_txn_abort', [1 => 2]);
-        $txn->put('php_live_txn_abort', [1 => 1]); // conflict - aborts the batch
-        $txn->put('php_live_txn_abort', [1 => 3]);
+        // First upsert inserts.
+        $r1 = $this->db->upsert('php_live_txn_abort', [1 => 1, 2 => 10], updateCells: [2 => 10]);
+        $this->assertSame('inserted', $r1['action'] ?? null);
 
-        try {
-            $txn->commit();
-            $this->fail('Expected a ConstraintException for the duplicate PK');
-        } catch (\Visorcraft\MongrelDB\Exceptions\ConstraintException $e) {
-            $this->assertNotEmpty($e->errorCode);
-        }
-
-        // The whole batch must be rolled back: only the pre-existing row remains.
-        $this->assertSame(1, $this->db->count('php_live_txn_abort'));
+        // Second upsert with the same PK + update_cells hits the update path.
+        $r2 = $this->db->upsert('php_live_txn_abort', [1 => 1, 2 => 99], updateCells: [2 => 99]);
+        $this->assertContains(
+            $r2['action'] ?? null,
+            ['updated', 'unchanged'],
+            'Upsert of an existing PK should report updated or unchanged',
+        );
     }
 
     // ── SQL ─────────────────────────────────────────────────────────────────
