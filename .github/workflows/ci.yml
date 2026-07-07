@@ -80,11 +80,11 @@ jobs:
         id: server-cache
         with:
           path: ~/.cargo/bin/mongreldb-server
-          key: mongreldb-server-${{ runner.os }}-0.40.0
+          key: mongreldb-server-${{ runner.os }}-0.41.1
 
       - name: Install mongreldb-server
         if: steps.server-cache.outputs.cache-hit != 'true'
-        run: cargo install mongreldb-server --version 0.40.0 --locked
+        run: cargo install mongreldb-server --version 0.41.1 --locked
 
       - name: Install PHP dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
@@ -102,7 +102,7 @@ jobs:
           edition = "2021"
 
           [dependencies]
-          mongreldb-core = "=0.40.0"
+          mongreldb-core = "=0.41.1"
           TOML
           cat > /tmp/mongreldb-init/src/main.rs <<'RS'
           fn main() {
