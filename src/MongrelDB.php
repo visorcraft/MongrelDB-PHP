@@ -91,6 +91,11 @@ final class MongrelDB
     public function post(string $path, mixed $data = null, array $headers = []): Response
     {
         $body = $data !== null ? $this->encodeJson($data) : null;
+        // The server's JSON extractors require an explicit Content-Type header;
+        // add it for any request carrying a JSON body.
+        if ($body !== null && !isset($headers['Content-Type']) && !isset($headers['content-type'])) {
+            $headers['Content-Type'] = 'application/json';
+        }
 
         return $this->request('POST', $path, $headers, $body);
     }
@@ -101,6 +106,9 @@ final class MongrelDB
     public function put(string $path, mixed $data = null, array $headers = []): Response
     {
         $body = $data !== null ? $this->encodeJson($data) : null;
+        if ($body !== null && !isset($headers['Content-Type']) && !isset($headers['content-type'])) {
+            $headers['Content-Type'] = 'application/json';
+        }
 
         return $this->request('PUT', $path, $headers, $body);
     }
