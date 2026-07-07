@@ -272,7 +272,9 @@ final class Database
      */
     public function schemaFor(string $table): array
     {
-        return $this->client->get("/kit/schema/{$table}")->json();
+        $data = $this->client->get("/kit/schema/{$table}")->json();
+
+        return is_array($data) ? $data : [];
     }
 
     // ── Auth management ─────────────────────────────────────────────────────
@@ -352,7 +354,7 @@ final class Database
         $response = $this->client->post('/sql', ['sql' => 'SHOW USERS']);
         $data = $response->json();
 
-        return array_column($data, 'username');
+        return is_array($data) ? array_column($data, 'username') : [];
     }
 
     /**
@@ -385,7 +387,7 @@ final class Database
         $response = $this->client->post('/sql', ['sql' => 'SHOW ROLES']);
         $data = $response->json();
 
-        return array_column($data, 'name');
+        return is_array($data) ? array_column($data, 'name') : [];
     }
 
     /**
