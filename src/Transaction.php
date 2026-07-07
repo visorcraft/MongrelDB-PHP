@@ -150,8 +150,9 @@ final class Transaction
 
         $response = $this->client->post('/kit/txn', $payload);
         $this->committed = true;
+        $data = $response->json();
 
-        return $response->json()['results'] ?? [];
+        return is_array($data) ? ($data['results'] ?? []) : [];
     }
 
     /**
