@@ -256,7 +256,7 @@ final class Database
             return $json;
         }
 
-        // Arrow IPC binary — return empty (use sqlRows via Kit query for JSON)
+        // Arrow IPC binary - return empty (use sqlRows via Kit query for JSON)
         return [];
     }
 
@@ -326,7 +326,7 @@ final class Database
      */
     public function verifyUser(string $username, string $password): bool
     {
-        // No dedicated verify endpoint — attempt an authenticated connection
+        // No dedicated verify endpoint - attempt an authenticated connection
         try {
             $tempClient = new MongrelDB(
                 $this->client->getUrl(),

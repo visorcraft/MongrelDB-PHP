@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * Round 2 adversarial tests — 50 tests targeting vectors not covered in round 1.
+ * Round 2 adversarial tests - 50 tests targeting vectors not covered in round 1.
  *
  * Focus: transaction op staging, query builder edge cases, schema/auth edge
  * cases, response corruption, procedure methods, idempotency, SQL method,
@@ -61,7 +61,7 @@ final class AdversarialTest2 extends TestCase
         $txn->rollback();
 
         // After rollback, ops are cleared. A new put() should work (stage a new op).
-        // But commit() was never called — committed flag is still false.
+        // But commit() was never called - committed flag is still false.
         $txn->put('orders', [1 => 2]);
         $transport->addResponse(new Response(200, '{"status":"committed","epoch":1,"results":[]}'));
         $txn->commit();
@@ -244,7 +244,7 @@ final class AdversarialTest2 extends TestCase
         $transport->addResponse(new Response(200, '{"rows":[]}'));
         $db = $this->makeDatabase($transport);
 
-        // Negative limit — client doesn't validate; server will handle
+        // Negative limit - client doesn't validate; server will handle
         $db->query('orders')->limit(-1)->execute();
 
         $this->assertSame(1, $transport->requestCount);
@@ -500,13 +500,13 @@ final class AdversarialTest2 extends TestCase
     #[Test]
     public function verify_user_returns_false_on_connection_error(): void
     {
-        // verifyUser creates a new MongrelDB internally — which will fail to connect
+        // verifyUser creates a new MongrelDB internally - which will fail to connect
         // We can't inject a mock transport into it, so we test against a non-existent daemon
         $transport = new MockTransport();
         $transport->addResponse(new Response(200, '{}')); // for the initial Database construction
         $db = $this->makeDatabase($transport);
 
-        // verifyUser creates its own client with the same URL — no mock transport
+        // verifyUser creates its own client with the same URL - no mock transport
         // The connection will fail → returns false
         $result = @$db->verifyUser('alice', 'pw');
         $this->assertFalse($result);
@@ -544,7 +544,7 @@ final class AdversarialTest2 extends TestCase
         $transport->addResponse(new Response(200, '{"epoch":1,"results":[]}'));
         $db = $this->makeDatabase($transport);
 
-        // Should not crash — just extract what we can
+        // Should not crash - just extract what we can
         $result = $db->put('orders', [1 => 1]);
         $this->assertSame([], $result);
     }
@@ -556,7 +556,7 @@ final class AdversarialTest2 extends TestCase
         $transport->addResponse(new Response(200, '{"rows": 5}'));
         $db = $this->makeDatabase($transport);
 
-        // Missing 'count' key — PHP will warn/null. The client should handle gracefully.
+        // Missing 'count' key - PHP will warn/null. The client should handle gracefully.
         $result = $db->count('orders');
         // In PHP, accessing a missing array key returns null (with a warning in PHP 8+).
         // The method signature says int, so this will either throw a TypeError or return 0.

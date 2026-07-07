@@ -15,7 +15,7 @@ use Visorcraft\MongrelDB\Transport\Response;
 use Visorcraft\MongrelDB\Transport\TransportInterface;
 
 /**
- * MongrelDB HTTP client — connects to a running mongreldb-server daemon.
+ * MongrelDB HTTP client - connects to a running mongreldb-server daemon.
  *
  * This is the low-level client that handles HTTP transport, authentication,
  * and error mapping. For typed CRUD operations, use the {@see Database}
@@ -119,7 +119,7 @@ final class MongrelDB
      *
      * Encoding policy:
      *   - Malformed UTF-8 bytes are substituted with the U+FFFD replacement
-     *     character (JSON_INVALID_UTF8_SUBSTITUTE). This is recoverable — the
+     *     character (JSON_INVALID_UTF8_SUBSTITUTE). This is recoverable - the
      *     surrounding data is still valid and meaningful, and refusing the whole
      *     request over one bad byte would be disproportionate.
      *   - INF, NAN, and recursive structures have no JSON representation and no
@@ -173,7 +173,7 @@ final class MongrelDB
         // Map HTTP status codes to typed exceptions
         $this->throwForStatus($response);
 
-        // throwForStatus always throws — this is unreachable
+        // throwForStatus always throws - this is unreachable
         throw new MongrelDBException("Unexpected response status: {$response->status}");
     }
 
@@ -196,7 +196,7 @@ final class MongrelDB
             try {
                 $json = json_decode($body, true, 512, \JSON_THROW_ON_ERROR);
             } catch (\JsonException) {
-                // Not JSON — treat as plain text
+                // Not JSON - treat as plain text
             }
         }
 

@@ -29,7 +29,7 @@ final class PersistentSharingTest extends TestCase
     /**
      * The default CurlTransport must not attempt to create a persistent handle.
      * We assert this by reflecting over the private normalizedShareOptions()
-     * helper — it must return null when persistentSharing is false.
+     * helper - it must return null when persistentSharing is false.
      */
     public function test_default_transport_disables_sharing(): void
     {
@@ -163,7 +163,7 @@ final class PersistentSharingTest extends TestCase
     }
 
     /**
-     * A custom transport passed to MongrelDB must take precedence — the
+     * A custom transport passed to MongrelDB must take precedence - the
      * persistentSharing flag must be ignored in that case.
      */
     public function test_custom_transport_takes_precedence(): void
@@ -203,11 +203,11 @@ final class PersistentSharingTest extends TestCase
         $transport = new CurlTransport(persistentSharing: true);
 
         // Use a deliberately bad host so we get a deterministic ConnectionException
-        // — this proves the share handle was attached and the request was attempted
+        // - this proves the share handle was attached and the request was attempted
         // without a fatal error from the persistent handle setup.
         $this->expectException(\Visorcraft\MongrelDB\Exceptions\ConnectionException::class);
 
-        // Reserved/documentation host — guaranteed not to resolve reliably.
+        // Reserved/documentation host - guaranteed not to resolve reliably.
         $transport->request('GET', 'http://invalid.localhost:1/health');
     }
 

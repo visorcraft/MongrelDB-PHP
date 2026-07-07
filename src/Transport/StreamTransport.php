@@ -7,7 +7,7 @@ namespace Visorcraft\MongrelDB\Transport;
 use Visorcraft\MongrelDB\Exceptions\ConnectionException;
 
 /**
- * Stream-based HTTP transport — fallback when cURL is not available.
+ * Stream-based HTTP transport - fallback when cURL is not available.
  *
  * Uses PHP's native stream wrappers (file_get_contents with context).
  * Less efficient than cURL (no keep-alive, no connection pooling).
@@ -44,7 +44,7 @@ final class StreamTransport implements TransportInterface
 
         $context = stream_context_create($options);
 
-        // Suppress warnings — we handle errors via response codes
+        // Suppress warnings - we handle errors via response codes
         $body_response = @file_get_contents($url, false, $context);
 
         if ($body_response === false) {

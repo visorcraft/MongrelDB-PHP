@@ -7,7 +7,7 @@ namespace Visorcraft\MongrelDB\Transport;
 use Visorcraft\MongrelDB\Exceptions\ConnectionException;
 
 /**
- * cURL-based HTTP transport — the default and recommended transport.
+ * cURL-based HTTP transport - the default and recommended transport.
  *
  * Uses keep-alive connection pooling within a single request for low-latency
  * sequential requests. Thread-safe in PHP-FPM (each request gets its own
@@ -42,7 +42,7 @@ final class CurlTransport implements TransportInterface
      *   - array<int,int>: explicit list of CURL_LOCK_DATA_* constants to share
      *
      *   Requires PHP 8.5+. On PHP 8.4 any non-false value silently falls back to
-     *   per-request pooling. CURL_LOCK_DATA_COOKIE is rejected — it is forbidden
+     *   per-request pooling. CURL_LOCK_DATA_COOKIE is rejected - it is forbidden
      *   by curl_share_init_persistent and would leak cookies across requests,
      *   which is unsafe for a stateless database client.
      */
@@ -105,7 +105,7 @@ final class CurlTransport implements TransportInterface
     /**
      * Get a reusable cURL handle from the pool, or create a new one.
      *
-     * The handle is reset and — when persistent sharing is enabled on PHP 8.5+ —
+     * The handle is reset and - when persistent sharing is enabled on PHP 8.5+ -
      * re-attached to the persistent share handle so that DNS, TLS, and connection
      * pools are reused across requests.
      */
@@ -138,7 +138,7 @@ final class CurlTransport implements TransportInterface
      *
      * PHP deduplicates persistent share handles by their option set, so creating
      * it once per instance and caching it is safe and cheap. The handle is never
-     * closed — persistent handles outlive the request by design.
+     * closed - persistent handles outlive the request by design.
      *
      * @return ?object The persistent CurlSharePersistentHandle, or null when
      *                 persistent sharing is disabled or unsupported (PHP 8.4)
@@ -184,7 +184,7 @@ final class CurlTransport implements TransportInterface
     }
 
     /**
-     * Sensible default share options — the latency wins without correctness risk.
+     * Sensible default share options - the latency wins without correctness risk.
      *
      * Shares DNS resolution, TLS sessions, and the connection pool across
      * requests. Cookie sharing is intentionally excluded (see guardShareOptions).
@@ -260,7 +260,7 @@ final class CurlTransport implements TransportInterface
      * Since PHP 8.0, \CurlHandle is an object with a destructor that frees the
      * underlying resource automatically, so there is nothing to close here. We
      * drop the references so the handles are collected promptly. The persistent
-     * share handle is intentionally NOT released — it is designed to outlive the
+     * share handle is intentionally NOT released - it is designed to outlive the
      * request and be reused across PHP-FPM invocations.
      */
     public function __destruct()
