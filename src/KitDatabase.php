@@ -65,7 +65,9 @@ final class Database
      */
     public function tables(): array
     {
-        return $this->client->get('/tables')->json();
+        $data = $this->client->get('/tables')->json();
+
+        return is_array($data) ? $data : [];
     }
 
     /**
@@ -82,8 +84,9 @@ final class Database
             'name' => $name,
             'columns' => $columns,
         ]);
+        $data = $response->json();
 
-        return $response->json()['table_id'];
+        return is_array($data) ? ($data['table_id'] ?? 0) : 0;
     }
 
     /**
@@ -99,7 +102,9 @@ final class Database
      */
     public function count(string $table): int
     {
-        return $this->client->get("/tables/{$table}/count")->json()['count'];
+        $data = $this->client->get("/tables/{$table}/count")->json();
+
+        return is_array($data) ? ($data['count'] ?? 0) : 0;
     }
 
     // ── CRUD (via Kit typed API) ────────────────────────────────────────────
@@ -132,8 +137,9 @@ final class Database
 
         $response = $this->client->post('/kit/txn', $payload);
         $data = $response->json();
+        $results = $data['results'] ?? [];
 
-        return $data['results'][0] ?? [];
+        return $results[0] ?? [];
     }
 
     /**
@@ -166,8 +172,9 @@ final class Database
 
         $response = $this->client->post('/kit/txn', $payload);
         $data = $response->json();
+        $results = $data['results'] ?? [];
 
-        return $data['results'][0] ?? [];
+        return $results[0] ?? [];
     }
 
     /**
@@ -253,7 +260,9 @@ final class Database
      */
     public function schema(): array
     {
-        return $this->client->get('/kit/schema')->json()['tables'];
+        $data = $this->client->get('/kit/schema')->json();
+
+        return is_array($data) ? ($data['tables'] ?? []) : [];
     }
 
     /**
@@ -437,7 +446,9 @@ final class Database
      */
     public function procedures(): array
     {
-        return $this->client->get('/procedures')->json()['procedures'];
+        $data = $this->client->get('/procedures')->json();
+
+        return is_array($data) ? ($data['procedures'] ?? []) : [];
     }
 
     /**
@@ -447,7 +458,9 @@ final class Database
      */
     public function procedure(string $name): array
     {
-        return $this->client->get("/procedures/{$name}")->json()['procedure'];
+        $data = $this->client->get("/procedures/{$name}")->json();
+
+        return is_array($data) ? ($data['procedure'] ?? []) : [];
     }
 
     /**
@@ -457,7 +470,9 @@ final class Database
      */
     public function createProcedure(array $procedure): array
     {
-        return $this->client->post('/procedures', ['procedure' => $procedure])->json()['procedure'];
+        $data = $this->client->post('/procedures', ['procedure' => $procedure])->json();
+
+        return is_array($data) ? ($data['procedure'] ?? []) : [];
     }
 
     /**
@@ -478,7 +493,9 @@ final class Database
      */
     public function callProcedure(string $name, array $args = []): mixed
     {
-        return $this->client->post("/procedures/{$name}/call", ['args' => $args])->json()['result'];
+        $data = $this->client->post("/procedures/{$name}/call", ['args' => $args])->json();
+
+        return is_array($data) ? ($data['result'] ?? null) : null;
     }
 
     // ── Maintenance ─────────────────────────────────────────────────────────
@@ -490,7 +507,9 @@ final class Database
      */
     public function compact(): array
     {
-        return $this->client->post('/compact')->json();
+        $data = $this->client->post('/compact')->json();
+
+        return is_array($data) ? $data : [];
     }
 
     /**
@@ -500,7 +519,9 @@ final class Database
      */
     public function compactTable(string $name): array
     {
-        return $this->client->post("/tables/{$name}/compact")->json();
+        $data = $this->client->post("/tables/{$name}/compact")->json();
+
+        return is_array($data) ? $data : [];
     }
 
     // ── Transactions ────────────────────────────────────────────────────────
