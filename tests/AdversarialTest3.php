@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * Round 3 adversarial tests — 50 tests.
+ * Round 3 adversarial tests - 50 tests.
  *
  * Focus: SQL DDL escaping across ALL auth methods, URL path injection,
  * JSON encoding edge cases, Stream transport, CurlTransport parsing,
@@ -103,7 +103,7 @@ final class AdversarialTest3 extends TestCase
 
         $lastRequest = $transport->getLastRequest();
         $sql = json_decode($lastRequest['body'], true)['sql'];
-        // Single quotes are inside double-quoted identifier — safe
+        // Single quotes are inside double-quoted identifier - safe
         $this->assertStringContainsString('"role\'with; semicolon"', $sql);
     }
 
@@ -176,7 +176,7 @@ final class AdversarialTest3 extends TestCase
         $transport->addResponse(new Response(200, '{}'));
         $client = $this->makeClient($transport);
 
-        // Table name with slash — path injection attempt
+        // Table name with slash - path injection attempt
         $client->get('/tables/../admin/users');
 
         $lastRequest = $transport->getLastRequest();
@@ -235,7 +235,7 @@ final class AdversarialTest3 extends TestCase
         $db->compactTable('table?query=injection');
 
         $lastRequest = $transport->getLastRequest();
-        // The ? would create a query string — this is a potential issue
+        // The ? would create a query string - this is a potential issue
         // The daemon would interpret it as /tables/table?query=injection/compact
         // which is not the intended path. But the client doesn't validate this.
         $this->assertSame(1, $transport->requestCount);
@@ -327,7 +327,7 @@ final class AdversarialTest3 extends TestCase
         $binary = pack('C*', ...range(0, 255));
         $db->put('orders', [1 => 1, 2 => $binary]);
 
-        // Should not crash — json_encode handles binary (may produce null for invalid UTF-8)
+        // Should not crash - json_encode handles binary (may produce null for invalid UTF-8)
         $this->assertSame(1, $transport->requestCount);
     }
 
@@ -415,7 +415,7 @@ final class AdversarialTest3 extends TestCase
         $txn = new Transaction($client);
         $txn->put('orders', [1 => 1]);
 
-        // Unset the client — Transaction holds its own reference
+        // Unset the client - Transaction holds its own reference
         unset($client);
 
         $results = $txn->commit();
@@ -436,7 +436,7 @@ final class AdversarialTest3 extends TestCase
         $txn2 = new Transaction($client);
         $txn2->put('b', [1 => 2]);
 
-        // Commit in reverse order — independent state
+        // Commit in reverse order - independent state
         $r2 = $txn2->commit();
         $r1 = $txn1->commit();
 
@@ -794,7 +794,7 @@ final class AdversarialTest3 extends TestCase
         // Execute with limit
         $qb->limit(10)->execute();
 
-        // Execute again without limit — should NOT have limit from previous call
+        // Execute again without limit - should NOT have limit from previous call
         $payload = $db->query('orders')->where('bitmap_eq', ['column' => 1, 'value' => 'A'])->build();
         $this->assertArrayNotHasKey('limit', $payload);
     }
@@ -838,7 +838,7 @@ final class AdversarialTest3 extends TestCase
         );
 
         // The Database will create a MongrelDB internally without our mock transport
-        // We can't test the request — but we can verify the object constructs
+        // We can't test the request - but we can verify the object constructs
         $this->assertInstanceOf(Database::class, $db);
     }
 
@@ -1112,7 +1112,7 @@ final class AdversarialTest3 extends TestCase
         $this->assertSame('test', $body['procedure']['name']);
     }
 
-    // ─– Auth SQL DDL: users() and roles() response parsing ─────────────────
+    // ─- Auth SQL DDL: users() and roles() response parsing ─────────────────
 
     #[Test]
     public function users_extracts_username_from_sql_response(): void

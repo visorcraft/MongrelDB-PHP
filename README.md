@@ -1,6 +1,6 @@
 # MongrelDB PHP Client
 
-MongrelDB PHP Client is the pure-PHP application-facing client for [MongrelDB](https://www.MongrelDB.com). It gives PHP 8.4+ applications a typed CRUD surface, a fluent query builder that pushes down to MongrelDB's native indexes, idempotent batch transactions, full SQL access, user/role/credentials management, and stored procedures — all over HTTP to a running `mongreldb-server` daemon.
+MongrelDB PHP Client is the pure-PHP application-facing client for [MongrelDB](https://www.MongrelDB.com). It gives PHP 8.4+ applications a typed CRUD surface, a fluent query builder that pushes down to MongrelDB's native indexes, idempotent batch transactions, full SQL access, user/role/credentials management, and stored procedures - all over HTTP to a running `mongreldb-server` daemon.
 
 No C extensions and no compilation step. Optional performance features (persistent cURL sharing) require PHP 8.5+ and degrade gracefully on 8.4.
 
@@ -24,7 +24,7 @@ No C extensions and no compilation step. Optional performance features (persiste
 
 - **Typed CRUD** over the Kit transaction endpoint: `put`, `upsert` (insert-or-update on PK conflict), `delete` by row id or primary key, with idempotency keys for safe retries.
 - **Fluent query builder** that pushes conditions down to the engine's specialized indexes for sub-millisecond lookups: bitmap equality/IN, learned-range, null checks, FM-index full-text search, HNSW vector similarity (`ann`), and sparse vector match.
-- **Idempotent batch transactions** — all operations staged locally and committed atomically, with the engine enforcing unique, foreign key, and check constraints at commit time. Idempotency keys return the original response on duplicate commits, even after a crash.
+- **Idempotent batch transactions** - all operations staged locally and committed atomically, with the engine enforcing unique, foreign key, and check constraints at commit time. Idempotency keys return the original response on duplicate commits, even after a crash.
 - **Full SQL access** through the DataFusion-backed `/sql` endpoint: recursive CTEs, window functions, `CREATE TABLE AS SELECT`, materialized views, multi-statement execution, and the `mongreldb_fts_rank` relevance-scoring UDF.
 - **Schema management**: typed table creation, full schema catalog, and per-table descriptors.
 - **User/role/credentials management**: Argon2id-hashed catalog users, roles, `GRANT`/`REVOKE` table-level permissions, daemon HTTP Basic + Bearer auth, and a client-side permission validator that blocks SQL injection in grant strings.
@@ -38,10 +38,10 @@ No C extensions and no compilation step. Optional performance features (persiste
 
 Runnable, commented examples live in [`examples/`](examples):
 
-- [Basic CRUD](examples/basic_crud.php) — connect, create a table, insert, query, count.
-- [Authentication](examples/auth_example.php) — users, roles, table-level permissions, credential verification.
-- [Transactions](examples/transactions.php) — batch commits, idempotency keys, constraint handling.
-- [SQL queries](examples/sql_queries.php) — recursive CTEs, window functions, advanced SQL.
+- [Basic CRUD](examples/basic_crud.php) - connect, create a table, insert, query, count.
+- [Authentication](examples/auth_example.php) - users, roles, table-level permissions, credential verification.
+- [Transactions](examples/transactions.php) - batch commits, idempotency keys, constraint handling.
+- [SQL queries](examples/sql_queries.php) - recursive CTEs, window functions, advanced SQL.
 
 ## Quick Example
 
@@ -100,14 +100,14 @@ $txn->put('orders', [1 => 11, 2 => 'Eve',  3 => 75.00]);
 $txn->deleteByPk('orders', 2);
 
 try {
-    $txn->commit();                       // atomic — all or nothing
+    $txn->commit();                       // atomic - all or nothing
     echo "Staged {$txn->count()} operations\n";
 } catch (\Visorcraft\MongrelDB\Exceptions\ConstraintException $e) {
-    echo "Constraint violated: {$e->errorCode} — {$e->getMessage()}\n";
+    echo "Constraint violated: {$e->errorCode} - {$e->getMessage()}\n";
     $txn->rollback();
 }
 
-// Idempotent commit — safe to retry; daemon returns the original response
+// Idempotent commit - safe to retry; daemon returns the original response
 $txn = $db->beginTransaction();
 $txn->put('orders', [1 => 20, 2 => 'Frank', 3 => 100.00]);
 $txn->commit(idempotencyKey: 'order-20-create');
@@ -181,7 +181,7 @@ $transport = new CurlTransport(persistentSharing: [\CURL_LOCK_DATA_DNS]);
 ```
 
 Off by default; silently degrades to per-request pooling on PHP 8.4.
-`CURL_LOCK_DATA_COOKIE` is rejected — it would leak cookies across requests and
+`CURL_LOCK_DATA_COOKIE` is rejected - it would leak cookies across requests and
 is unsafe for a stateless database client.
 
 ## Custom HTTP transport
@@ -279,7 +279,7 @@ try {
 
 ## Building and testing
 
-The test suite uses PHPUnit 12 and is fully offline — it does **not** require a
+The test suite uses PHPUnit 12 and is fully offline - it does **not** require a
 running daemon (a mock transport intercepts all HTTP calls).
 
 ```sh
@@ -297,7 +297,7 @@ machines, and the optional persistent-sharing feature.
 Contributions are welcome. Please:
 
 1. Open an issue first for non-trivial changes.
-2. Add focused tests near your change — the suite must stay green.
+2. Add focused tests near your change - the suite must stay green.
 3. Keep PHP 8.4 as the minimum supported version (PHP 8.5-only features must
    degrade gracefully, detected at runtime via `function_exists`/`defined`).
 4. Match the existing style: strict types, `declare(strict_types=1)`, tabs,

@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * Round 4 adversarial tests — 50 tests.
+ * Round 4 adversarial tests - 50 tests.
  *
  * Focus: QueryBuilder (Database.php) robustness, MockTransport exhaustion,
  * cellsToFlat edge cases (pre-flattened arrays, column 0), CRLF header
@@ -173,7 +173,7 @@ final class AdversarialTest4 extends TestCase
         $transport->addResponse(new Response(200, '{"status":"committed","epoch":1,"results":[]}'));
         $db = $this->makeDatabase($transport);
 
-        // Sequential array [0 => 'val1', 1 => 'val2'] — NOT associative
+        // Sequential array [0 => 'val1', 1 => 'val2'] - NOT associative
         // This would be treated as col 0 = 'val1', col 1 = 'val2'
         $db->put('orders', ['val1', 'val2']);
 
@@ -242,7 +242,7 @@ final class AdversarialTest4 extends TestCase
         $client->get('/health');
 
         $lastRequest = $transport->getLastRequest();
-        // The CRLF is in the Authorization header value — the mock transport
+        // The CRLF is in the Authorization header value - the mock transport
         // records it as-is. A real cURL transport would reject or sanitize it.
         $this->assertStringContainsString('evil', $lastRequest['headers']['Authorization']);
     }
@@ -752,7 +752,7 @@ final class AdversarialTest4 extends TestCase
         $this->assertSame('SHOW ROLES', $sql);
     }
 
-    // ─– Response::json with various data types ──────────────────────────────
+    // ─- Response::json with various data types ──────────────────────────────
 
     #[Test]
     public function response_json_returns_string(): void
@@ -993,7 +993,7 @@ final class AdversarialTest4 extends TestCase
         $this->assertSame(0, $r2['ops'][0]['put']['cells'][3]);
     }
 
-    // ─– Schema descriptor structure verification ────────────────────────────
+    // ─- Schema descriptor structure verification ────────────────────────────
 
     #[Test]
     public function schema_with_full_descriptor(): void

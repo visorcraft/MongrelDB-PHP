@@ -40,7 +40,7 @@ try {
 
     echo "Idempotent retry succeeded (no double-apply)\n";
 } catch (ConstraintException $e) {
-    echo "Transfer failed: {$e->errorCode} — {$e->getMessage()}\n";
+    echo "Transfer failed: {$e->errorCode} - {$e->getMessage()}\n";
     $txn->rollback();
 }
 

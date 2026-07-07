@@ -6,7 +6,7 @@ declare(strict_types=1);
  * Adversarial test suite for the MongrelDB PHP client.
  *
  * Tests SQL injection, input validation, error handling, edge cases,
- * and malicious input patterns. Does NOT require a running daemon —
+ * and malicious input patterns. Does NOT require a running daemon -
  * tests are designed to catch issues at the client level (before the
  * request hits the server).
  *
@@ -122,7 +122,7 @@ final class AdversarialTest extends TestCase
         // The injection is neutralized because the ; is part of the username
         // literal, not a statement separator.
         $this->assertStringContainsString('"alice\'; DROP USER admin; --"', $sql);
-        // The statement must contain exactly one CREATE USER clause — the DROP
+        // The statement must contain exactly one CREATE USER clause - the DROP
         // must NOT have escaped the identifier into a second statement. The
         // presence of WITH PASSWORD after the identifier confirms the parser sees
         // a single user name.
@@ -176,7 +176,7 @@ final class AdversarialTest extends TestCase
         $lastRequest = $transport->getLastRequest();
         $sql = json_decode($lastRequest['body'], true)['sql'];
 
-        // Permission string is passed raw — verify it doesn't allow injection
+        // Permission string is passed raw - verify it doesn't allow injection
         // through the role name quoting
         $this->assertStringContainsString('GRANT select:orders TO "analyst"', $sql);
     }
@@ -193,7 +193,7 @@ final class AdversarialTest extends TestCase
         $lastRequest = $transport->getLastRequest();
         $sql = json_decode($lastRequest['body'], true)['sql'];
 
-        // Backslash should not cause issues in SQL — it's inside double quotes
+        // Backslash should not cause issues in SQL - it's inside double quotes
         $this->assertStringContainsString('"alice\"', $sql);
     }
 
@@ -206,7 +206,7 @@ final class AdversarialTest extends TestCase
         $transport->addResponse(new Response(200, '{}'));
         $db = $this->makeDatabase($transport);
 
-        // Should not throw at the client level — server handles validation
+        // Should not throw at the client level - server handles validation
         $db->createUser('', 'pw');
 
         $this->assertSame(1, $transport->requestCount);
@@ -233,7 +233,7 @@ final class AdversarialTest extends TestCase
 
         $db->createUser("alice\x00admin", 'pw');
 
-        // The null byte should be in the request — PHP doesn't strip it
+        // The null byte should be in the request - PHP doesn't strip it
         $lastRequest = $transport->getLastRequest();
         $this->assertNotNull($lastRequest);
     }

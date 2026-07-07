@@ -17,7 +17,7 @@ namespace Visorcraft\MongrelDB;
  * $txn->put('orders', [1 => 1, 2 => 'Alice']);
  * $txn->put('orders', [1 => 2, 2 => 'Bob']);
  * $txn->deleteByPk('orders', 99);
- * $results = $txn->commit(); // atomic — all or nothing
+ * $results = $txn->commit(); // atomic - all or nothing
  * ```
  */
 final class Transaction
