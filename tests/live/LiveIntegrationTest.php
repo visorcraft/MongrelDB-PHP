@@ -307,7 +307,10 @@ final class LiveIntegrationTest extends TestCase
         ]);
 
         $desc = $this->db->schemaFor('php_live_schema_one');
-        $this->assertSame('php_live_schema_one', $desc['name'] ?? null);
+        // schema_one returns {schema_id, columns, constraints} (no table name).
+        $this->assertArrayHasKey('schema_id', $desc);
         $this->assertCount(2, $desc['columns'] ?? []);
+        // Column 0 is the PK.
+        $this->assertTrue($desc['columns'][0]['primary_key'] ?? false);
     }
 }

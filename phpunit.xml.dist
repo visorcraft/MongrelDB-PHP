@@ -18,6 +18,7 @@
             <file>tests/AdversarialTest4.php</file>
             <file>tests/PersistentSharingTest.php</file>
             <file>tests/QueryBuilderConformanceTest.php</file>
+            <file>tests/HttpConformanceTest.php</file>
         </testsuite>
         <testsuite name="live">
             <!-- Live integration tests against a real mongreldb-server daemon.
