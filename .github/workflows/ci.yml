@@ -12,8 +12,8 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    name: PHPUnit (PHP ${{ matrix.php }})
+  unit:
+    name: PHPUnit unit (PHP ${{ matrix.php }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -50,5 +50,70 @@ jobs:
       - name: Lint source
         run: find src tests -name '*.php' -print0 | xargs -0 -n1 php -l
 
-      - name: Run PHPUnit
-        run: vendor/bin/phpunit --colors=never
+      - name: Run unit tests
+        run: vendor/bin/phpunit --colors=never --testsuite=unit
+
+  live:
+    # The layer that catches client/server contract drift. Builds the daemon,
+    # starts it, and runs the live round-trip suite against a real server.
+    name: Live integration (against mongreldb-server)
+    runs-on: ubuntu-latest
+    env:
+      MONGRELDB_URL: http://127.0.0.1:8453
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP 8.5
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: curl, json
+          coverage: none
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache mongreldb-server binary
+        uses: actions/cache@v4
+        id: server-cache
+        with:
+          path: ~/.cargo/bin/mongreldb-server
+          key: mongreldb-server-${{ runner.os }}-0.40.0
+
+      - name: Install mongreldb-server
+        if: steps.server-cache.outputs.cache-hit != 'true'
+        run: cargo install mongreldb-server --version 0.40.0 --locked
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Start mongreldb-server
+        run: |
+          mkdir -p /tmp/mongreldb-data
+          mongreldb-server /tmp/mongreldb-data --port 8453 > /tmp/mongreldb-server.log 2>&1 &
+          echo $! > /tmp/mongreldb-server.pid
+          # Wait for the daemon to become healthy (max ~30s).
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8453/health >/dev/null 2>&1; then
+              echo "mongreldb-server is healthy"
+              break
+            fi
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8453/health >/dev/null || (cat /tmp/mongreldb-server.log && exit 1)
+
+      - name: Run live tests
+        run: vendor/bin/phpunit --colors=never --testsuite=live
+
+      - name: Dump server log on failure
+        if: failure()
+        run: cat /tmp/mongreldb-server.log
+
+      - name: Stop mongreldb-server
+        if: always()
+        run: |
+          if [ -f /tmp/mongreldb-server.pid ]; then
+            kill "$(cat /tmp/mongreldb-server.pid)" 2>/dev/null || true
+          fi
