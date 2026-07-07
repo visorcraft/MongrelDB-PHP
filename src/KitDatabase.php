@@ -404,9 +404,12 @@ final class Database
      *
      * @param string $role       Role name
      * @param string $permission Permission string (e.g., 'select:orders', 'all', 'ddl', 'admin')
+     *
+     * @throws \InvalidArgumentException If the permission string contains injection characters
      */
     public function grantPermission(string $role, string $permission): void
     {
+        $this->validatePermission($permission);
         $this->client->post('/sql', [
             'sql' => "GRANT {$permission} TO {$this->quoteIdent($role)}",
         ]);
@@ -414,9 +417,12 @@ final class Database
 
     /**
      * Revoke a permission from a role.
+     *
+     * @throws \InvalidArgumentException If the permission string contains injection characters
      */
     public function revokePermission(string $role, string $permission): void
     {
+        $this->validatePermission($permission);
         $this->client->post('/sql', [
             'sql' => "REVOKE {$permission} FROM {$this->quoteIdent($role)}",
         ]);
@@ -541,5 +547,35 @@ final class Database
     private function escapeString(string $value): string
     {
         return str_replace("'", "''", $value);
+    }
+
+    /**
+     * Validate a permission string against the allowed format.
+     *
+     * Allowed: all, ddl, admin, select:<table>, insert:<table>,
+     * update:<table>, delete:<table>. Rejects anything containing
+     * SQL injection characters (semicolons, quotes, comments).
+     *
+     * @throws \InvalidArgumentException If the permission is invalid
+     */
+    private function validatePermission(string $permission): void
+    {
+        // Allowed standalone permissions
+        $standalone = ['all', 'ddl', 'admin'];
+
+        if (in_array(strtolower($permission), $standalone, true)) {
+            return;
+        }
+
+        // Check table-level permission format: verb:table_name
+        if (preg_match('/^(select|insert|update|delete):(\w+)$/i', $permission)) {
+            return;
+        }
+
+        // Reject anything with injection characters
+        throw new \InvalidArgumentException(
+            "Invalid permission '{$permission}'. Expected: all, ddl, admin, " .
+            'or select:<table>, insert:<table>, update:<table>, delete:<table>'
+        );
     }
 }
