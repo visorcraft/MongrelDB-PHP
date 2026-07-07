@@ -11,13 +11,18 @@
     displayDetailsOnTestsThatTriggerWarnings="true"
 >
     <testsuites>
-        <testsuite name="MongrelDB PHP Client Test Suite">
+        <testsuite name="unit">
             <file>tests/AdversarialTest.php</file>
             <file>tests/AdversarialTest2.php</file>
             <file>tests/AdversarialTest3.php</file>
             <file>tests/AdversarialTest4.php</file>
             <file>tests/PersistentSharingTest.php</file>
             <file>tests/QueryBuilderConformanceTest.php</file>
+        </testsuite>
+        <testsuite name="live">
+            <!-- Live integration tests against a real mongreldb-server daemon.
+                 Skips automatically when MONGRELDB_URL is unset/unreachable. -->
+            <directory>tests/live</directory>
         </testsuite>
     </testsuites>
 
