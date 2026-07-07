@@ -24,7 +24,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up PHP ${{ matrix.php }}
         uses: shivammathur/setup-php@v2
@@ -38,7 +38,7 @@ jobs:
         run: composer validate --strict --no-check-publish
 
       - name: Cache Composer packages
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/composer
           key: ${{ runner.os }}-php-${{ matrix.php }}-${{ hashFiles('**/composer.json') }}
@@ -63,7 +63,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up PHP 8.5
         uses: shivammathur/setup-php@v2
@@ -76,7 +76,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache mongreldb-server binary
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         id: server-cache
         with:
           path: ~/.cargo/bin/mongreldb-server
@@ -89,9 +89,34 @@ jobs:
       - name: Install PHP dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
 
+      - name: Initialize the database
+        # mongreldb-server opens an existing catalog but does not create one,
+        # so initialize the data directory with mongreldb-core::Database::create
+        # first (the binary is already compiled from the install step above).
+        run: |
+          mkdir -p /tmp/mongreldb-init/src
+          cat > /tmp/mongreldb-init/Cargo.toml <<'TOML'
+          [package]
+          name = "mdb-init"
+          version = "0.0.0"
+          edition = "2021"
+
+          [dependencies]
+          mongreldb-core = "=0.40.0"
+          TOML
+          cat > /tmp/mongreldb-init/src/main.rs <<'RS'
+          fn main() {
+              let dir = std::env::args().nth(1).expect("db dir arg");
+              let _db = mongreldb_core::Database::create(&dir)
+                  .expect("failed to create database catalog");
+              println!("initialized mongreldb catalog at {dir}");
+          }
+          RS
+          mkdir -p /tmp/mongreldb-data
+          cargo run --quiet --manifest-path /tmp/mongreldb-init/Cargo.toml -- /tmp/mongreldb-data
+
       - name: Start mongreldb-server
         run: |
-          mkdir -p /tmp/mongreldb-data
           mongreldb-server /tmp/mongreldb-data --port 8453 > /tmp/mongreldb-server.log 2>&1 &
           echo $! > /tmp/mongreldb-server.pid
           # Wait for the daemon to become healthy (max ~30s).
