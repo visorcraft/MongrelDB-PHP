@@ -1,0 +1,73 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Visorcraft\MongrelDB\Transport;
+
+use Visorcraft\MongrelDB\Exceptions\ConnectionException;
+
+/**
+ * Stream-based HTTP transport — fallback when cURL is not available.
+ *
+ * Uses PHP's native stream wrappers (file_get_contents with context).
+ * Less efficient than cURL (no keep-alive, no connection pooling).
+ */
+final class StreamTransport implements TransportInterface
+{
+    /**
+     * @param int $timeout Total request timeout (seconds)
+     */
+    public function __construct(
+        private readonly int $timeout = 30,
+    ) {}
+
+    #[\Override]
+    public function request(string $method, string $url, array $headers = [], ?string $body = null): Response
+    {
+        $headerLines = [];
+        foreach ($headers as $key => $value) {
+            $headerLines[] = "{$key}: {$value}";
+        }
+
+        $options = [
+            'http' => [
+                'method' => $method,
+                'header' => implode("\r\n", $headerLines),
+                'timeout' => $this->timeout,
+                'ignore_errors' => true,
+            ],
+        ];
+
+        if ($body !== null) {
+            $options['http']['content'] = $body;
+        }
+
+        $context = stream_context_create($options);
+
+        // Suppress warnings — we handle errors via response codes
+        $body_response = @file_get_contents($url, false, $context);
+
+        if ($body_response === false) {
+            throw new ConnectionException(
+                'HTTP request failed: unable to connect to the daemon',
+            );
+        }
+
+        // Parse status code from $http_response_header
+        $status = 500;
+        $responseHeaders = [];
+
+        if (isset($http_response_header) && is_array($http_response_header)) {
+            foreach ($http_response_header as $header) {
+                if (preg_match('#^HTTP/\S+\s+(\d+)#', $header, $matches)) {
+                    $status = (int) $matches[1];
+                } elseif (str_contains($header, ': ')) {
+                    [$key, $value] = explode(': ', $header, 2);
+                    $responseHeaders[strtolower($key)] = $value;
+                }
+            }
+        }
+
+        return new Response($status, (string) $body_response, $responseHeaders);
+    }
+}
