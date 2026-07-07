@@ -17,6 +17,7 @@
             <file>tests/AdversarialTest3.php</file>
             <file>tests/AdversarialTest4.php</file>
             <file>tests/PersistentSharingTest.php</file>
+            <file>tests/QueryBuilderConformanceTest.php</file>
         </testsuite>
     </testsuites>
 
