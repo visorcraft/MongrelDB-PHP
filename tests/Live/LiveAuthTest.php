@@ -109,7 +109,9 @@ final class LiveAuthTest extends LiveTestCase
             ['id' => 1, 'name' => 'id', 'ty' => 'int64', 'primary_key' => true, 'nullable' => false],
         ]);
         $role = 'php_live_perm_role_' . uniqid();
-        $this->adminDb->sql("CREATE ROLE {$role}");
+        // Quote the role name consistently — grantPermission/revokePermission
+        // quote it via quoteIdent, so CREATE/DROP must match.
+        $this->adminDb->sql("CREATE ROLE \"{$role}\"");
 
         // GRANT select ON table TO role (table-level permission)
         $this->adminDb->grantPermission($role, "select:php_live_auth_tbl");
@@ -117,7 +119,7 @@ final class LiveAuthTest extends LiveTestCase
         // REVOKE
         $this->adminDb->revokePermission($role, "select:php_live_auth_tbl");
 
-        $this->adminDb->sql("DROP ROLE {$role}");
+        $this->adminDb->sql("DROP ROLE \"{$role}\"");
     }
 
     #[Test]
