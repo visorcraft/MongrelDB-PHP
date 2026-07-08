@@ -314,10 +314,15 @@ final class LiveFullCoverageTest extends LiveTestCase
     {
         $tbl = $this->makeTable();
         $this->seed($tbl);
-        // Verify data is visible via count before querying
         $cnt = $this->db->count($tbl);
+        // Also try a raw /kit/query to see the exact response
+        $raw = $this->db->getClient()->post('/kit/query', [
+            'table' => $tbl,
+            'conditions' => [['pk' => ['value' => 2]]],
+        ]);
+        $rawBody = $raw->body;
         $rows = $this->db->query($tbl)->where('pk', ['value' => 2])->execute();
-        $this->assertCount(1, $rows, "pk query returned " . count($rows) . " rows (count=$cnt, table=$tbl)");
+        $this->assertCount(1, $rows, "pk query returned " . count($rows) . " rows (count=$cnt, table=$tbl, raw=$rawBody)");
     }
 
     #[Test]
