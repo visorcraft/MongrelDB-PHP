@@ -1115,31 +1115,37 @@ final class AdversarialTest3 extends TestCase
     // ─- Auth SQL DDL: users() and roles() response parsing ─────────────────
 
     #[Test]
-    public function users_extracts_username_from_sql_response(): void
+    public function users_sends_show_users_sql(): void
     {
+        // The /sql endpoint returns Arrow IPC (not JSON), so users() returns
+        // [] until a JSON user-listing endpoint exists. This test verifies the
+        // SHOW USERS statement is sent correctly.
         $transport = new MockTransport();
-        $transport->addResponse(new Response(200, json_encode([
-            ['username' => 'admin', 'is_admin' => true],
-            ['username' => 'alice', 'is_admin' => false],
-        ])));
+        $transport->addResponse(new Response(200, '')); // empty Arrow body
         $db = $this->makeDatabase($transport);
 
         $users = $db->users();
-        $this->assertSame(['admin', 'alice'], $users);
+        $this->assertSame([], $users);
+
+        $lastRequest = $transport->getLastRequest();
+        $sql = json_decode($lastRequest['body'], true)['sql'];
+        $this->assertSame('SHOW USERS', $sql);
     }
 
     #[Test]
-    public function roles_extracts_name_from_sql_response(): void
+    public function roles_sends_show_roles_sql(): void
     {
+        // Same as users(): SHOW ROLES returns Arrow IPC, so roles() returns [].
         $transport = new MockTransport();
-        $transport->addResponse(new Response(200, json_encode([
-            ['name' => 'analyst'],
-            ['name' => 'admin'],
-        ])));
+        $transport->addResponse(new Response(200, ''));
         $db = $this->makeDatabase($transport);
 
         $roles = $db->roles();
-        $this->assertSame(['analyst', 'admin'], $roles);
+        $this->assertSame([], $roles);
+
+        $lastRequest = $transport->getLastRequest();
+        $sql = json_decode($lastRequest['body'], true)['sql'];
+        $this->assertSame('SHOW ROLES', $sql);
     }
 
     #[Test]

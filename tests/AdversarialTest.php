@@ -176,9 +176,10 @@ final class AdversarialTest extends TestCase
         $lastRequest = $transport->getLastRequest();
         $sql = json_decode($lastRequest['body'], true)['sql'];
 
-        // Permission string is passed raw - verify it doesn't allow injection
-        // through the role name quoting
-        $this->assertStringContainsString('GRANT select:orders TO "analyst"', $sql);
+        // The client translates select:orders -> SELECT ON orders (the
+        // server's SQL syntax). Verify the translated form and that the role
+        // name is quoted.
+        $this->assertStringContainsString('GRANT SELECT ON orders TO "analyst"', $sql);
     }
 
     #[Test]
