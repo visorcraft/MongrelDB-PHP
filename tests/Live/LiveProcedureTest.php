@@ -41,7 +41,9 @@ final class LiveProcedureTest extends LiveTestCase
                         'id' => 'q1',
                         'table' => self::TABLE_NAME,
                         'conditions' => [
-                            ['kind' => 'pk', 'value' => ['kind' => 'literal', 'value' => 1]],
+                            // ProcedureValue::Literal wraps a core Value,
+                            // which is externally tagged: {"Int64": 1}.
+                            ['kind' => 'pk', 'value' => ['kind' => 'literal', 'value' => ['Int64' => 1]]],
                         ],
                     ],
                 ],
