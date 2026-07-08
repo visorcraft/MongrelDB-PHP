@@ -22,6 +22,8 @@ final class LiveProcedureTest extends LiveTestCase
      */
     private function procedureBody(): array
     {
+        // StoredProcedure requires checksum/created_epoch/updated_epoch for
+        // deserialization; the server recomputes them via normalized().
         return [
             'name' => self::PROC_NAME,
             'version' => 1,
@@ -37,6 +39,10 @@ final class LiveProcedureTest extends LiveTestCase
                 // content="value"). Return the query step's rows.
                 'return_value' => ['kind' => 'step_rows', 'value' => 'q1'],
             ],
+            // Server-assigned; send placeholders (recomputed by normalized()).
+            'checksum' => '',
+            'created_epoch' => 0,
+            'updated_epoch' => 0,
         ];
     }
 
