@@ -162,7 +162,7 @@ final class LiveFullCoverageTest extends LiveTestCase
         $key = 'idem-' . uniqid();
         $this->db->put($tbl, [1 => 1, 2 => 'A', 3 => 1.0], idempotencyKey: $key);
         $this->db->put($tbl, [1 => 1, 2 => 'A', 3 => 1.0], idempotencyKey: $key);
-        $this->assertSame(1, $this->db($tbl));
+        $this->assertSame(1, $this->db->count($tbl));
     }
 
     #[Test]
@@ -314,8 +314,10 @@ final class LiveFullCoverageTest extends LiveTestCase
     {
         $tbl = $this->makeTable();
         $this->seed($tbl);
+        // Verify data is visible via count before querying
+        $cnt = $this->db->count($tbl);
         $rows = $this->db->query($tbl)->where('pk', ['value' => 2])->execute();
-        $this->assertCount(1, $rows);
+        $this->assertCount(1, $rows, "pk query returned " . count($rows) . " rows (count=$cnt, table=$tbl)");
     }
 
     #[Test]
@@ -645,6 +647,7 @@ final class LiveFullCoverageTest extends LiveTestCase
                 'columns' => [['id' => 1, 'name' => 'id', 'ty' => 'int64', 'primary_key' => true, 'nullable' => false],
                               ['id' => 2, 'name' => 'parent_id', 'ty' => 'int64', 'primary_key' => false, 'nullable' => false]],
                 'constraints' => ['foreign_keys' => [[
+                    'id' => 1,
                     'name' => 'fk_child_parent',
                     'columns' => [2],
                     'ref_table' => $parent,
