@@ -1,12 +1,18 @@
-# MongrelDB PHP Client
+<p align="center">
+  <img src="assets/mongrel.png" alt="MongrelDB logo" width="250" />
+</p>
 
-MongrelDB PHP Client is the pure-PHP application-facing client for [MongrelDB](https://www.MongrelDB.com). It gives PHP 8.4+ applications a typed CRUD surface, a fluent query builder that pushes down to MongrelDB's native indexes, idempotent batch transactions, full SQL access, user/role/credentials management, and stored procedures - all over HTTP to a running `mongreldb-server` daemon.
+<h1 align="center">MongrelDB PHP Client</h1>
 
-No C extensions and no compilation step. Optional performance features (persistent cURL sharing) require PHP 8.5+ and degrade gracefully on 8.4.
+<p align="center">
+  <b>Pure PHP client for MongrelDB - embedded+server database with SQL, vector search, full-text search, and AI-native retrieval.</b>
+</p>
 
-[![Packagist](https://img.shields.io/packagist/v/visorcraft/mongreldb-php.svg)](https://packagist.org/packages/visorcraft/mongreldb-php)
-[![PHP](https://img.shields.io/badge/PHP-%3E%3D8.4-777bb4.svg)](https://www.php.net/)
-[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
+<p align="center">
+  <a href="https://packagist.org/packages/visorcraft/mongreldb-php"><img src="https://img.shields.io/packagist/v/visorcraft/mongreldb-php.svg" alt="Packagist" /></a>
+  <a href="https://www.php.net/"><img src="https://img.shields.io/badge/PHP-%3E%3D8.4-777bb4.svg" alt="PHP" /></a>
+  <a href="#license"><img src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg" alt="License" /></a>
+</p>
 
 ## Package
 
