@@ -33,12 +33,16 @@ final class LiveProcedureTest extends LiveTestCase
                 'steps' => [
                     // NativeQuery: PK lookup (the core engine supports this
                     // via /procedures/{name}/call; SqlQuery requires the query
-                    // layer and is rejected).
+                    // layer and is rejected). ProcedureCondition is internally
+                    // tagged (tag="kind"); the value is a ProcedureValue
+                    // (adjacently tagged: tag="kind", content="value").
                     [
                         'kind' => 'native_query',
                         'id' => 'q1',
                         'table' => self::TABLE_NAME,
-                        'conditions' => [['pk' => ['value' => 1]]],
+                        'conditions' => [
+                            ['kind' => 'pk', 'value' => ['kind' => 'literal', 'value' => 1]],
+                        ],
                     ],
                 ],
                 'return_value' => ['kind' => 'step_rows', 'value' => 'q1'],
