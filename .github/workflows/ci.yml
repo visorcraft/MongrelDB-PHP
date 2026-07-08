@@ -80,43 +80,18 @@ jobs:
         id: server-cache
         with:
           path: ~/.cargo/bin/mongreldb-server
-          key: mongreldb-server-${{ runner.os }}-0.42.0
+          key: mongreldb-server-${{ runner.os }}-0.42.1
 
       - name: Install mongreldb-server
         if: steps.server-cache.outputs.cache-hit != 'true'
-        run: cargo install mongreldb-server --version 0.42.0 --locked
+        run: cargo install mongreldb-server --version 0.42.1 --locked
 
       - name: Install PHP dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
 
-      - name: Initialize the database
-        # mongreldb-server opens an existing catalog but does not create one,
-        # so initialize the data directory with mongreldb-core::Database::create
-        # first (the binary is already compiled from the install step above).
-        run: |
-          mkdir -p /tmp/mongreldb-init/src
-          cat > /tmp/mongreldb-init/Cargo.toml <<'TOML'
-          [package]
-          name = "mdb-init"
-          version = "0.0.0"
-          edition = "2021"
-
-          [dependencies]
-          mongreldb-core = "=0.42.0"
-          TOML
-          cat > /tmp/mongreldb-init/src/main.rs <<'RS'
-          fn main() {
-              let dir = std::env::args().nth(1).expect("db dir arg");
-              let _db = mongreldb_core::Database::create(&dir)
-                  .expect("failed to create database catalog");
-              println!("initialized mongreldb catalog at {dir}");
-          }
-          RS
-          mkdir -p /tmp/mongreldb-data
-          cargo run --quiet --manifest-path /tmp/mongreldb-init/Cargo.toml -- /tmp/mongreldb-data
-
       - name: Start mongreldb-server
         run: |
+          rm -rf /tmp/mongreldb-data
           mongreldb-server /tmp/mongreldb-data --port 8453 > /tmp/mongreldb-server.log 2>&1 &
           echo $! > /tmp/mongreldb-server.pid
           # Wait for the daemon to become healthy (max ~30s).
@@ -175,40 +150,18 @@ jobs:
         id: server-cache
         with:
           path: ~/.cargo/bin/mongreldb-server
-          key: mongreldb-server-${{ runner.os }}-0.42.0
+          key: mongreldb-server-${{ runner.os }}-0.42.1
 
       - name: Install mongreldb-server
         if: steps.server-cache.outputs.cache-hit != 'true'
-        run: cargo install mongreldb-server --version 0.42.0 --locked
+        run: cargo install mongreldb-server --version 0.42.1 --locked
 
       - name: Install PHP dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
 
-      - name: Initialize the database
-        run: |
-          mkdir -p /tmp/mongreldb-init-auth/src
-          cat > /tmp/mongreldb-init-auth/Cargo.toml <<'TOML'
-          [package]
-          name = "mdb-init-auth"
-          version = "0.0.0"
-          edition = "2021"
-
-          [dependencies]
-          mongreldb-core = "=0.42.0"
-          TOML
-          cat > /tmp/mongreldb-init-auth/src/main.rs <<'RS'
-          fn main() {
-              let dir = std::env::args().nth(1).expect("db dir arg");
-              let _db = mongreldb_core::Database::create(&dir)
-                  .expect("failed to create database catalog");
-              println!("initialized mongreldb catalog at {dir}");
-          }
-          RS
-          mkdir -p /tmp/mongreldb-data-auth
-          cargo run --quiet --manifest-path /tmp/mongreldb-init-auth/Cargo.toml -- /tmp/mongreldb-data-auth
-
       - name: Start mongreldb-server (auth-token mode)
         run: |
+          rm -rf /tmp/mongreldb-data-auth
           mongreldb-server /tmp/mongreldb-data-auth --port 8454 --auth-token "${MONGRELDB_TOKEN}" > /tmp/mongreldb-server-auth.log 2>&1 &
           echo $! > /tmp/mongreldb-server-auth.pid
           for i in $(seq 1 30); do
