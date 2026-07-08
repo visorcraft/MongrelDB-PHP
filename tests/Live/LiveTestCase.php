@@ -42,6 +42,12 @@ abstract class LiveTestCase extends TestCase
         $ch = curl_init($this->baseUrl . '/health');
         curl_setopt($ch, \CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, \CURLOPT_TIMEOUT, 2);
+        // If a bearer token is configured, include it — otherwise an
+        // auth-enabled daemon returns 401 on /health and looks "unreachable".
+        $token = getenv('MONGRELDB_TOKEN') ?: '';
+        if ($token !== '') {
+            curl_setopt($ch, \CURLOPT_HTTPHEADER, ["Authorization: Bearer {$token}"]);
+        }
         curl_exec($ch);
         $code = curl_getinfo($ch, \CURLINFO_RESPONSE_CODE);
         unset($ch);
