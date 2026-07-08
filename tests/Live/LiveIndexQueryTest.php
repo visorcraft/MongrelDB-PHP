@@ -45,9 +45,12 @@ final class LiveIndexQueryTest extends LiveTestCase
     {
         $this->db->sql("DROP TABLE IF EXISTS php_live_idx_fm");
         $this->db->sql('CREATE TABLE php_live_idx_fm (id BIGINT PRIMARY KEY, body TEXT)');
-        $this->db->sql('CREATE INDEX fm_body ON php_live_idx_fm (body) USING fm_index');
         try {
+            // Insert data FIRST, then build the index. FM indexes are built
+            // at CREATE INDEX time over existing rows; inserts after index
+            // creation may not be reflected.
             $this->db->sql("INSERT INTO php_live_idx_fm (id, body) VALUES (1,'the quick brown fox'),(2,'a lazy dog'),(3,'quick red fox')");
+            $this->db->sql('CREATE INDEX fm_body ON php_live_idx_fm (body) USING fm_index');
 
             $rows = $this->db->query('php_live_idx_fm')
                 ->where('fm_contains', ['column' => 2, 'pattern' => 'quick'])
@@ -69,13 +72,13 @@ final class LiveIndexQueryTest extends LiveTestCase
             ['id' => 2, 'name' => 'label', 'ty' => 'varchar', 'primary_key' => false, 'nullable' => false],
             ['id' => 3, 'name' => 'vec', 'ty' => 'embedding(8)', 'primary_key' => false, 'nullable' => false],
         ]);
-        $this->db->sql('CREATE INDEX ann_vec ON php_live_idx_ann (vec) USING ann');
         try {
-            // Insert rows with clearly-signed vectors (±1.0) so binary
-            // quantization is meaningful.
+            // Insert rows FIRST (clearly-signed ±1.0 vectors for meaningful
+            // binary quantization), then build the ANN index over the data.
             $this->db->put('php_live_idx_ann', [1 => 1, 2 => 'a', 3 => [1.0, 1.0, 1.0, 1.0, -1.0, -1.0, -1.0, -1.0]]);
             $this->db->put('php_live_idx_ann', [1 => 2, 2 => 'b', 3 => [-1.0, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0, 1.0]]);
             $this->db->put('php_live_idx_ann', [1 => 3, 2 => 'c', 3 => [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]]);
+            $this->db->sql('CREATE INDEX ann_vec ON php_live_idx_ann (vec) USING ann');
 
             // Query nearest to [1,1,1,1,-1,-1,-1,-1] -> row 1 is the exact match.
             $rows = $this->db->query('php_live_idx_ann')

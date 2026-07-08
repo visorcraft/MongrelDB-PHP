@@ -29,7 +29,9 @@ final class LiveProcedureTest extends LiveTestCase
             'params' => [],
             'body' => [
                 'steps' => [
-                    ['SqlQuery' => ['sql' => 'SELECT 1']],
+                    // ProcedureStep is internally tagged (tag = "kind",
+                    // snake_case). SqlQuery requires an `id` and `sql`.
+                    ['kind' => 'sql_query', 'id' => 'q1', 'sql' => 'SELECT 1'],
                 ],
             ],
         ];
