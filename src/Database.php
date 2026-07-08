@@ -531,7 +531,10 @@ final class Database
      */
     public function callProcedure(string $name, array $args = []): mixed
     {
-        $data = $this->client->post("/procedures/{$name}/call", ['args' => $args])->json();
+        // The server's ProcedureCallRequest expects args as a JSON object
+        // (map), not an array. An empty PHP array encodes as [] (sequence);
+        // cast to an object so it becomes {}.
+        $data = $this->client->post("/procedures/{$name}/call", ['args' => (object) $args])->json();
 
         return is_array($data) ? ($data['result'] ?? null) : null;
     }
