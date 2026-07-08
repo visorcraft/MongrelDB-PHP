@@ -315,14 +315,20 @@ final class LiveFullCoverageTest extends LiveTestCase
         $tbl = $this->makeTable();
         $this->seed($tbl);
         $cnt = $this->db->count($tbl);
-        // Also try a raw /kit/query to see the exact response
-        $raw = $this->db->getClient()->post('/kit/query', [
+        // Also try a raw /kit/query to see the exact response.
+        // Try both with and without conditions to isolate the issue.
+        $rawAll = $this->db->getClient()->post('/kit/query', [
+            'table' => $tbl,
+        ]);
+        $rawAllBody = $rawAll->body;
+        $rawPk = $this->db->getClient()->post('/kit/query', [
             'table' => $tbl,
             'conditions' => [['pk' => ['value' => 2]]],
         ]);
+        $rawPkBody = $rawPk->body;
         $rawBody = $raw->body;
         $rows = $this->db->query($tbl)->where('pk', ['value' => 2])->execute();
-        $this->assertCount(1, $rows, "pk query returned " . count($rows) . " rows (count=$cnt, table=$tbl, raw=$rawBody)");
+        $this->assertCount(1, $rows, "pk query returned " . count($rows) . " rows (count=$cnt, table=$tbl, rawAll=$rawAllBody, rawPk=$rawPkBody)");
     }
 
     #[Test]
