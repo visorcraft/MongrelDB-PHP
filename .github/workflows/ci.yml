@@ -80,11 +80,11 @@ jobs:
         id: server-cache
         with:
           path: ~/.cargo/bin/mongreldb-server
-          key: mongreldb-server-${{ runner.os }}-0.42.1
+          key: mongreldb-server-${{ runner.os }}-0.43.1
 
       - name: Install mongreldb-server
         if: steps.server-cache.outputs.cache-hit != 'true'
-        run: cargo install mongreldb-server --version 0.42.1 --locked
+        run: cargo install mongreldb-server --version 0.43.1 --locked
 
       - name: Install PHP dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
@@ -150,11 +150,11 @@ jobs:
         id: server-cache
         with:
           path: ~/.cargo/bin/mongreldb-server
-          key: mongreldb-server-${{ runner.os }}-0.42.1
+          key: mongreldb-server-${{ runner.os }}-0.43.1
 
       - name: Install mongreldb-server
         if: steps.server-cache.outputs.cache-hit != 'true'
-        run: cargo install mongreldb-server --version 0.42.1 --locked
+        run: cargo install mongreldb-server --version 0.43.1 --locked
 
       - name: Install PHP dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
