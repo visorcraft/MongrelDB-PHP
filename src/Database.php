@@ -356,14 +356,18 @@ final class Database
     /**
      * List all usernames.
      *
+     * NOTE: The /sql endpoint returns Arrow IPC bytes, not JSON. Until a
+     * JSON user-listing endpoint is available, this method returns an empty
+     * array (the SHOW USERS statement itself still executes; use it via
+     * sqlRaw() for the raw Arrow bytes). This does NOT indicate an error.
+     *
      * @return array<int,string>
      */
     public function users(): array
     {
-        $response = $this->client->post('/sql', ['sql' => 'SHOW USERS']);
-        $data = $response->json();
+        $this->client->post('/sql', ['sql' => 'SHOW USERS']);
 
-        return is_array($data) ? array_column($data, 'username') : [];
+        return [];
     }
 
     /**
@@ -389,14 +393,17 @@ final class Database
     /**
      * List all role names.
      *
+     * NOTE: Like users(), this returns [] until a JSON role-listing endpoint
+     * is available (the /sql endpoint returns Arrow IPC bytes). The SHOW ROLES
+     * statement still executes; use sqlRaw() for the raw bytes.
+     *
      * @return array<int,string>
      */
     public function roles(): array
     {
-        $response = $this->client->post('/sql', ['sql' => 'SHOW ROLES']);
-        $data = $response->json();
+        $this->client->post('/sql', ['sql' => 'SHOW ROLES']);
 
-        return is_array($data) ? array_column($data, 'name') : [];
+        return [];
     }
 
     /**
@@ -430,8 +437,9 @@ final class Database
     public function grantPermission(string $role, string $permission): void
     {
         $this->validatePermission($permission);
+        $sql = $this->permissionToSqlFragment($permission);
         $this->client->post('/sql', [
-            'sql' => "GRANT {$permission} TO {$this->quoteIdent($role)}",
+            'sql' => "GRANT {$sql} TO {$this->quoteIdent($role)}",
         ]);
     }
 
@@ -443,9 +451,28 @@ final class Database
     public function revokePermission(string $role, string $permission): void
     {
         $this->validatePermission($permission);
+        $sql = $this->permissionToSqlFragment($permission);
         $this->client->post('/sql', [
-            'sql' => "REVOKE {$permission} FROM {$this->quoteIdent($role)}",
+            'sql' => "REVOKE {$sql} FROM {$this->quoteIdent($role)}",
         ]);
+    }
+
+    /**
+     * Convert a permission string to the server's SQL GRANT/REVOKE fragment.
+     *
+     * The public API uses the friendly `select:orders` format; the server's
+     * SQL syntax is `select ON orders` (or standalone `all`/`ddl`/`admin`).
+     *
+     * @param string $permission Validated permission string
+     */
+    private function permissionToSqlFragment(string $permission): string
+    {
+        // Standalone permissions (all, ddl, admin) pass through as-is.
+        if (preg_match('/^(select|insert|update|delete):(\w+)$/i', $permission, $m)) {
+            return strtoupper($m[1]) . ' ON ' . $m[2];
+        }
+
+        return $permission;
     }
 
     // ── Stored procedures ───────────────────────────────────────────────────

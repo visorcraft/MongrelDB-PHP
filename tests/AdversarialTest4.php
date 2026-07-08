@@ -707,7 +707,7 @@ final class AdversarialTest4 extends TestCase
 
         $lastRequest = $transport->getLastRequest();
         $sql = json_decode($lastRequest['body'], true)['sql'];
-        $this->assertSame('GRANT select:orders TO "analyst"', $sql);
+        $this->assertSame('GRANT SELECT ON orders TO "analyst"', $sql);
     }
 
     #[Test]
@@ -721,7 +721,7 @@ final class AdversarialTest4 extends TestCase
 
         $lastRequest = $transport->getLastRequest();
         $sql = json_decode($lastRequest['body'], true)['sql'];
-        $this->assertSame('REVOKE insert:orders FROM "analyst"', $sql);
+        $this->assertSame('REVOKE INSERT ON orders FROM "analyst"', $sql);
     }
 
     #[Test]
