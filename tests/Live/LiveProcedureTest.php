@@ -33,9 +33,9 @@ final class LiveProcedureTest extends LiveTestCase
                     // snake_case). SqlQuery requires an `id` and `sql`.
                     ['kind' => 'sql_query', 'id' => 'q1', 'sql' => 'SELECT 1'],
                 ],
-                // ProcedureBody requires a return_value (the last step's id,
-                // or a literal). Point it at the query step's output.
-                'return_value' => ['step' => 'q1'],
+                // ProcedureValue is adjacently tagged (tag="kind",
+                // content="value"). Return the query step's rows.
+                'return_value' => ['kind' => 'step_rows', 'value' => 'q1'],
             ],
         ];
     }
