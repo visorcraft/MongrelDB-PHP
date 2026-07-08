@@ -80,11 +80,11 @@ jobs:
         id: server-cache
         with:
           path: ~/.cargo/bin/mongreldb-server
-          key: mongreldb-server-${{ runner.os }}-0.41.2
+          key: mongreldb-server-${{ runner.os }}-0.42.0
 
       - name: Install mongreldb-server
         if: steps.server-cache.outputs.cache-hit != 'true'
-        run: cargo install mongreldb-server --version 0.41.2 --locked
+        run: cargo install mongreldb-server --version 0.42.0 --locked
 
       - name: Install PHP dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
@@ -102,7 +102,7 @@ jobs:
           edition = "2021"
 
           [dependencies]
-          mongreldb-core = "=0.41.2"
+          mongreldb-core = "=0.42.0"
           TOML
           cat > /tmp/mongreldb-init/src/main.rs <<'RS'
           fn main() {
@@ -130,6 +130,10 @@ jobs:
           curl -sf http://127.0.0.1:8453/health >/dev/null || (cat /tmp/mongreldb-server.log && exit 1)
 
       - name: Run live tests
+        env:
+          MONGRELDB_URL: http://127.0.0.1:8453
+          # Run only the non-auth live tests (auth suite needs a token; see
+          # the live-auth job). The auth tests skip without MONGRELDB_TOKEN.
         run: vendor/bin/phpunit --colors=never --testsuite=live
 
       - name: Dump server log on failure
@@ -141,4 +145,91 @@ jobs:
         run: |
           if [ -f /tmp/mongreldb-server.pid ]; then
             kill "$(cat /tmp/mongreldb-server.pid)" 2>/dev/null || true
+          fi
+
+  live-auth:
+    # Exercises the auth surface (CREATE USER, ALTER USER ADMIN, roles, GRANT,
+    # Bearer enforcement) against a daemon started with --auth-token.
+    name: Live auth integration (against mongreldb-server)
+    runs-on: ubuntu-latest
+    env:
+      MONGRELDB_URL: http://127.0.0.1:8454
+      MONGRELDB_TOKEN: ci-auth-token-s3cret
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up PHP 8.5
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: curl, json
+          coverage: none
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache mongreldb-server binary
+        uses: actions/cache@v6
+        id: server-cache
+        with:
+          path: ~/.cargo/bin/mongreldb-server
+          key: mongreldb-server-${{ runner.os }}-0.42.0
+
+      - name: Install mongreldb-server
+        if: steps.server-cache.outputs.cache-hit != 'true'
+        run: cargo install mongreldb-server --version 0.42.0 --locked
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Initialize the database
+        run: |
+          mkdir -p /tmp/mongreldb-init-auth/src
+          cat > /tmp/mongreldb-init-auth/Cargo.toml <<'TOML'
+          [package]
+          name = "mdb-init-auth"
+          version = "0.0.0"
+          edition = "2021"
+
+          [dependencies]
+          mongreldb-core = "=0.42.0"
+          TOML
+          cat > /tmp/mongreldb-init-auth/src/main.rs <<'RS'
+          fn main() {
+              let dir = std::env::args().nth(1).expect("db dir arg");
+              let _db = mongreldb_core::Database::create(&dir)
+                  .expect("failed to create database catalog");
+              println!("initialized mongreldb catalog at {dir}");
+          }
+          RS
+          mkdir -p /tmp/mongreldb-data-auth
+          cargo run --quiet --manifest-path /tmp/mongreldb-init-auth/Cargo.toml -- /tmp/mongreldb-data-auth
+
+      - name: Start mongreldb-server (auth-token mode)
+        run: |
+          mongreldb-server /tmp/mongreldb-data-auth --port 8454 --auth-token "${MONGRELDB_TOKEN}" > /tmp/mongreldb-server-auth.log 2>&1 &
+          echo $! > /tmp/mongreldb-server-auth.pid
+          for i in $(seq 1 30); do
+            if curl -sf -H "Authorization: Bearer ${MONGRELDB_TOKEN}" http://127.0.0.1:8454/health >/dev/null 2>&1; then
+              echo "mongreldb-server (auth) is healthy"
+              break
+            fi
+            sleep 1
+          done
+          curl -sf -H "Authorization: Bearer ${MONGRELDB_TOKEN}" http://127.0.0.1:8454/health >/dev/null || (cat /tmp/mongreldb-server-auth.log && exit 1)
+
+      - name: Run auth live tests
+        run: vendor/bin/phpunit --colors=never --filter LiveAuthTest --testsuite=live
+
+      - name: Dump server log on failure
+        if: failure()
+        run: cat /tmp/mongreldb-server-auth.log
+
+      - name: Stop mongreldb-server
+        if: always()
+        run: |
+          if [ -f /tmp/mongreldb-server-auth.pid ]; then
+            kill "$(cat /tmp/mongreldb-server-auth.pid)" 2>/dev/null || true
           fi

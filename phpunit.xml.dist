@@ -23,7 +23,7 @@
         <testsuite name="live">
             <!-- Live integration tests against a real mongreldb-server daemon.
                  Skips automatically when MONGRELDB_URL is unset/unreachable. -->
-            <directory>tests/live</directory>
+            <directory>tests/Live</directory>
         </testsuite>
     </testsuites>
 
