@@ -326,16 +326,23 @@ final class LiveFullCoverageTest extends LiveTestCase
             'conditions' => [['pk' => ['value' => 2]]],
         ]);
         $rawPkBody = $rawPk->body;
-        $rawBody = $raw->body;
         $rows = $this->db->query($tbl)->where('pk', ['value' => 2])->execute();
-        $this->assertCount(1, $rows, "pk query returned " . count($rows) . " rows (count=$cnt, table=$tbl, rawAll=$rawAllBody, rawPk=$rawPkBody)");
+        $this->assertCount(1, $rows);
     }
 
     #[Test]
     public function query_builder_range(): void
     {
-        $tbl = $this->makeTable();
-        $this->seed($tbl);
+        // Use int64 for the amount column (range condition is integer-typed).
+        $tbl = $this->uniqueTable();
+        $this->db->createTable($tbl, [
+            ['id' => 1, 'name' => 'id',     'ty' => 'int64',  'primary_key' => true,  'nullable' => false],
+            ['id' => 2, 'name' => 'name',   'ty' => 'varchar','primary_key' => false, 'nullable' => false],
+            ['id' => 3, 'name' => 'amount', 'ty' => 'int64',  'primary_key' => false, 'nullable' => false],
+        ]);
+        $this->db->put($tbl, [1 => 1, 2 => 'Alice', 3 => 50]);
+        $this->db->put($tbl, [1 => 2, 2 => 'Bob',   3 => 120]);
+        $this->db->put($tbl, [1 => 3, 2 => 'Carol', 3 => 200]);
         $rows = $this->db->query($tbl)
             ->where('range', ['column' => 3, 'min' => 100, 'max' => 250])
             ->execute();
@@ -411,8 +418,16 @@ final class LiveFullCoverageTest extends LiveTestCase
     #[Test]
     public function query_builder_multiple_conditions(): void
     {
-        $tbl = $this->makeTable();
-        $this->seed($tbl);
+        // Use int64 for the amount column (range condition is integer-typed).
+        $tbl = $this->uniqueTable();
+        $this->db->createTable($tbl, [
+            ['id' => 1, 'name' => 'id',     'ty' => 'int64',  'primary_key' => true,  'nullable' => false],
+            ['id' => 2, 'name' => 'name',   'ty' => 'varchar','primary_key' => false, 'nullable' => false],
+            ['id' => 3, 'name' => 'amount', 'ty' => 'int64',  'primary_key' => false, 'nullable' => false],
+        ]);
+        $this->db->put($tbl, [1 => 1, 2 => 'Alice', 3 => 50]);
+        $this->db->put($tbl, [1 => 2, 2 => 'Bob',   3 => 120]);
+        $this->db->put($tbl, [1 => 3, 2 => 'Carol', 3 => 200]);
         $rows = $this->db->query($tbl)
             ->where('range', ['column' => 3, 'min' => 100, 'max' => 250])
             ->where('pk', ['value' => 2])
@@ -668,12 +683,12 @@ final class LiveFullCoverageTest extends LiveTestCase
             ]);
             $this->db->put($parent, [1 => 1]);
             $this->db->put($child, [1 => 10, 2 => 1]);
-            // FK violation
+            // FK violation: child referencing nonexistent parent should fail
             try {
                 $this->db->put($child, [1 => 20, 2 => 999]);
                 $this->fail('Expected ConstraintException for FK violation');
             } catch (\Visorcraft\MongrelDB\Exceptions\ConstraintException $e) {
-                // Expected
+                $this->assertNotEmpty($e->errorCode);
             }
         } finally {
             try { $this->db->dropTable($child); } catch (\Throwable) {}
