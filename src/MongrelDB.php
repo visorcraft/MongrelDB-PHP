@@ -55,13 +55,26 @@ final class MongrelDB
         $headers = ['Accept' => 'application/json'];
 
         if ($token !== null) {
+            self::assertNoCrlf($token, 'token');
             $headers['Authorization'] = "Bearer {$token}";
         } elseif ($username !== null) {
+            self::assertNoCrlf($username, 'username');
+            $password ?? self::assertNoCrlf($password ?? '', 'password');
             $credentials = base64_encode("{$username}:" . ($password ?? ''));
             $headers['Authorization'] = "Basic {$credentials}";
         }
 
         $this->defaultHeaders = $headers;
+    }
+
+    /**
+     * Reject CR/LF in a value to prevent CRLF header injection.
+     */
+    private static function assertNoCrlf(string $value, string $field): void
+    {
+        if (strcspn($value, "\r\n") !== strlen($value)) {
+            throw new QueryException("Illegal CR/LF in {$field} value");
+        }
     }
 
     // ── HTTP helpers ────────────────────────────────────────────────────────

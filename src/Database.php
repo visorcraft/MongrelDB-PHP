@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Visorcraft\MongrelDB;
 
+use Visorcraft\MongrelDB\Exceptions\AuthException;
+use Visorcraft\MongrelDB\Exceptions\QueryException;
+
 /**
  * High-level typed API for MongrelDB.
  *
@@ -103,7 +106,7 @@ final class Database
      */
     public function dropTable(string $name): void
     {
-        $this->client->delete("/tables/{$name}");
+        $this->client->delete("/tables/" . self::pathSegment($name));
     }
 
     /**
@@ -111,9 +114,13 @@ final class Database
      */
     public function count(string $table): int
     {
-        $data = $this->client->get("/tables/{$table}/count")->json();
+        $data = $this->client->get("/tables/" . self::pathSegment($table) . "/count")->json();
 
-        return is_array($data) ? ($data['count'] ?? 0) : 0;
+        if (is_array($data) && isset($data['count']) && (is_int($data['count']) || is_string($data['count']))) {
+            return (int) $data['count'];
+        }
+
+        throw new QueryException('malformed count response from server');
     }
 
     // ── CRUD (via Kit typed API) ────────────────────────────────────────────
@@ -281,7 +288,7 @@ final class Database
      */
     public function schemaFor(string $table): array
     {
-        $data = $this->client->get("/kit/schema/{$table}")->json();
+        $data = $this->client->get("/kit/schema/" . self::pathSegment($table))->json();
 
         return is_array($data) ? $data : [];
     }
@@ -326,7 +333,9 @@ final class Database
      */
     public function verifyUser(string $username, string $password): bool
     {
-        // No dedicated verify endpoint - attempt an authenticated connection
+        // No dedicated verify endpoint - attempt an authenticated connection.
+        // Only an auth failure means "bad credentials"; connection or server
+        // errors must propagate so they aren't misread as auth failures.
         try {
             $tempClient = new MongrelDB(
                 $this->client->getUrl(),
@@ -336,7 +345,7 @@ final class Database
             $tempClient->get('/health');
 
             return true;
-        } catch (\Visorcraft\MongrelDB\Exceptions\MongrelDBException) {
+        } catch (AuthException) {
             return false;
         }
     }
@@ -496,7 +505,7 @@ final class Database
      */
     public function procedure(string $name): array
     {
-        $data = $this->client->get("/procedures/{$name}")->json();
+        $data = $this->client->get("/procedures/" . self::pathSegment($name))->json();
 
         return is_array($data) ? ($data['procedure'] ?? []) : [];
     }
@@ -518,7 +527,7 @@ final class Database
      */
     public function dropProcedure(string $name): void
     {
-        $this->client->delete("/procedures/{$name}");
+        $this->client->delete("/procedures/" . self::pathSegment($name));
     }
 
     /**
@@ -534,7 +543,7 @@ final class Database
         // The server's ProcedureCallRequest expects args as a JSON object
         // (map), not an array. An empty PHP array encodes as [] (sequence);
         // cast to an object so it becomes {}.
-        $data = $this->client->post("/procedures/{$name}/call", ['args' => (object) $args])->json();
+        $data = $this->client->post("/procedures/" . self::pathSegment($name) . "/call", ['args' => (object) $args])->json();
 
         return is_array($data) ? ($data['result'] ?? null) : null;
     }
@@ -560,7 +569,7 @@ final class Database
      */
     public function compactTable(string $name): array
     {
-        $data = $this->client->post("/tables/{$name}/compact")->json();
+        $data = $this->client->post("/tables/" . self::pathSegment($name) . "/compact")->json();
 
         return is_array($data) ? $data : [];
     }
@@ -639,5 +648,14 @@ final class Database
             "Invalid permission '{$permission}'. Expected: all, ddl, admin, " .
             'or select:<table>, insert:<table>, update:<table>, delete:<table>'
         );
+    }
+
+    /**
+     * Percent-encode a single URL path segment so names containing '/', '?',
+     * '#', or spaces cannot inject extra segments or break routing.
+     */
+    private static function pathSegment(string $segment): string
+    {
+        return rawurlencode($segment);
     }
 }

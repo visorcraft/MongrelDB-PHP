@@ -207,8 +207,8 @@ final class AdversarialTest3 extends TestCase
         $db->count('orders/evil');
 
         $lastRequest = $transport->getLastRequest();
-        // The table name is interpolated into the URL path
-        $this->assertSame('http://127.0.0.1:8453/tables/orders/evil/count', $lastRequest['url']);
+        // The slash is now percent-encoded so it cannot inject an extra path segment.
+        $this->assertSame('http://127.0.0.1:8453/tables/orders%2Fevil/count', $lastRequest['url']);
     }
 
     #[Test]
@@ -222,7 +222,8 @@ final class AdversarialTest3 extends TestCase
 
         $lastRequest = $transport->getLastRequest();
         $this->assertSame('DELETE', $lastRequest['method']);
-        $this->assertStringEndsWith('/tables/table%20name', $lastRequest['url']);
+        // rawurlencode encodes the % so the literal name is preserved.
+        $this->assertStringEndsWith('/tables/table%2520name', $lastRequest['url']);
     }
 
     #[Test]
@@ -235,9 +236,8 @@ final class AdversarialTest3 extends TestCase
         $db->compactTable('table?query=injection');
 
         $lastRequest = $transport->getLastRequest();
-        // The ? would create a query string - this is a potential issue
-        // The daemon would interpret it as /tables/table?query=injection/compact
-        // which is not the intended path. But the client doesn't validate this.
+        // The ? is now percent-encoded so it cannot start a query string.
+        $this->assertStringContainsString('table%3Fquery%3Dinjection', $lastRequest['url']);
         $this->assertSame(1, $transport->requestCount);
     }
 

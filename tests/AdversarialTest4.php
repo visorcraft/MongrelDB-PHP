@@ -229,46 +229,28 @@ final class AdversarialTest4 extends TestCase
     #[Test]
     public function crlf_injection_in_token(): void
     {
-        $transport = new MockTransport();
-        $transport->addResponse(new Response(200, '{}'));
+        $this->expectException(\Visorcraft\MongrelDB\Exceptions\QueryException::class);
+        $this->expectExceptionMessage('Illegal CR/LF in token');
 
-        // Token with CRLF injection attempt
-        $client = new MongrelDB(
+        // Token with CRLF injection attempt - must be rejected at construction.
+        new MongrelDB(
             url: 'http://localhost:8453',
             token: "evil\r\nX-Injected: true",
-            transport: $transport,
         );
-
-        $client->get('/health');
-
-        $lastRequest = $transport->getLastRequest();
-        // The CRLF is in the Authorization header value - the mock transport
-        // records it as-is. A real cURL transport would reject or sanitize it.
-        $this->assertStringContainsString('evil', $lastRequest['headers']['Authorization']);
     }
 
     #[Test]
     public function crlf_injection_in_basic_auth_username(): void
     {
-        $transport = new MockTransport();
-        $transport->addResponse(new Response(200, '{}'));
+        $this->expectException(\Visorcraft\MongrelDB\Exceptions\QueryException::class);
+        $this->expectExceptionMessage('Illegal CR/LF in username');
 
-        $client = new MongrelDB(
+        // Username with CRLF - must be rejected before base64 encoding.
+        new MongrelDB(
             url: 'http://localhost:8453',
             username: "user\r\nX-Evil: true",
             password: 'pass',
-            transport: $transport,
         );
-
-        $client->get('/health');
-
-        $lastRequest = $transport->getLastRequest();
-        // The base64 encoding neutralizes CRLF injection
-        $auth = $lastRequest['headers']['Authorization'];
-        $this->assertStringStartsWith('Basic ', $auth);
-        // Decoding the base64 should contain the raw username with CRLF
-        $decoded = base64_decode(substr($auth, 6));
-        $this->assertStringContainsString("user\r\nX-Evil: true", $decoded);
     }
 
     // ── Constructor with bad URLs ───────────────────────────────────────────

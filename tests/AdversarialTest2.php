@@ -500,16 +500,17 @@ final class AdversarialTest2 extends TestCase
     #[Test]
     public function verify_user_returns_false_on_connection_error(): void
     {
-        // verifyUser creates a new MongrelDB internally - which will fail to connect
-        // We can't inject a mock transport into it, so we test against a non-existent daemon
+        // verifyUser creates a new MongrelDB internally. Point it at a port with
+        // no daemon so the connection fails. Connection errors now propagate
+        // (only AuthException -> false) so a network problem isn't misread as
+        // bad credentials.
         $transport = new MockTransport();
-        $transport->addResponse(new Response(200, '{}')); // for the initial Database construction
-        $db = $this->makeDatabase($transport);
+        $transport->addResponse(new Response(200, '{}'));
+        $client = new MongrelDB('http://127.0.0.1:8999'); // nothing listening
+        $db = new Database(client: $client);
 
-        // verifyUser creates its own client with the same URL - no mock transport
-        // The connection will fail → returns false
-        $result = @$db->verifyUser('alice', 'pw');
-        $this->assertFalse($result);
+        $this->expectException(\Visorcraft\MongrelDB\Exceptions\ConnectionException::class);
+        $db->verifyUser('alice', 'pw');
     }
 
     // ── Response corruption ─────────────────────────────────────────────────
@@ -556,12 +557,10 @@ final class AdversarialTest2 extends TestCase
         $transport->addResponse(new Response(200, '{"rows": 5}'));
         $db = $this->makeDatabase($transport);
 
-        // Missing 'count' key - PHP will warn/null. The client should handle gracefully.
-        $result = $db->count('orders');
-        // In PHP, accessing a missing array key returns null (with a warning in PHP 8+).
-        // The method signature says int, so this will either throw a TypeError or return 0.
-        // We test that it doesn't crash.
-        $this->assertTrue($result === null || is_int($result), 'Should not crash on missing key');
+        // Missing 'count' key is a malformed response - the client now throws
+        // instead of silently returning 0.
+        $this->expectException(\Visorcraft\MongrelDB\Exceptions\QueryException::class);
+        $db->count('orders');
     }
 
     #[Test]

@@ -35,6 +35,11 @@ final class StreamTransport implements TransportInterface
                 'header' => implode("\r\n", $headerLines),
                 'timeout' => $this->timeout,
                 'ignore_errors' => true,
+                // Never follow redirects: a malicious or misconfigured server
+                // could redirect to an attacker-controlled host with the
+                // Authorization header still attached.
+                'follow_location' => 0,
+                'max_redirects' => 0,
             ],
         ];
 
