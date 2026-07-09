@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Visorcraft\MongrelDB\Transport;
 
 use Visorcraft\MongrelDB\Exceptions\ConnectionException;
+use Visorcraft\MongrelDB\Exceptions\QueryException;
 
 /**
  * cURL-based HTTP transport - the default and recommended transport.
@@ -24,6 +25,12 @@ final class CurlTransport implements TransportInterface
 {
     private const int DEFAULT_TIMEOUT = 30;
     private const int DEFAULT_CONNECT_TIMEOUT = 10;
+
+    /**
+     * Maximum response body size (256 MB). Guards against a malicious or
+     * buggy server exhausting client memory with an oversized payload.
+     */
+    public const int MAX_RESPONSE_BYTES = 268435456;
 
     /** @var array<int, \CurlHandle> Pool of reusable handles keyed by host */
     private array $handlePool = [];
@@ -69,6 +76,10 @@ final class CurlTransport implements TransportInterface
         curl_setopt($ch, \CURLOPT_TIMEOUT, $this->timeout);
         curl_setopt($ch, \CURLOPT_CONNECTTIMEOUT, $this->connectTimeout);
 
+        // Advisory cap on the download size based on the Content-Length header.
+        // The explicit byte-count check below is the authoritative guard.
+        curl_setopt($ch, \CURLOPT_MAXFILESIZE, self::MAX_RESPONSE_BYTES);
+
         if ($body !== null) {
             curl_setopt($ch, \CURLOPT_POSTFIELDS, $body);
         }
@@ -96,6 +107,13 @@ final class CurlTransport implements TransportInterface
 
         $rawHeaders = substr((string) $result, 0, $headerSize);
         $responseBody = substr((string) $result, $headerSize);
+
+        if (strlen($responseBody) > self::MAX_RESPONSE_BYTES) {
+            throw new QueryException(sprintf(
+                'Response body exceeds maximum size of %d bytes',
+                self::MAX_RESPONSE_BYTES,
+            ));
+        }
 
         $responseHeaders = $this->parseHeaders($rawHeaders);
 

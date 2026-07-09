@@ -238,7 +238,9 @@ final class Database
     /**
      * Execute a SQL statement and return decoded result rows.
      *
-     * Uses the Kit query endpoint for JSON output. For raw Arrow IPC,
+     * Requests JSON output from the server (`format: json`). The server returns
+     * a JSON array of row objects keyed by column name, e.g.
+     * `[{"id": 1, "name": "Alice", "score": 95.5}]`. For raw Arrow IPC bytes,
      * use {@see MongrelDB::sqlRaw()}.
      *
      * @param string $sql SQL statement
@@ -247,8 +249,7 @@ final class Database
      */
     public function sql(string $sql): array
     {
-        // Route simple SELECTs through the SQL endpoint for full DataFusion support
-        $response = $this->client->post('/sql', ['sql' => $sql]);
+        $response = $this->client->post('/sql', ['sql' => $sql, 'format' => 'json']);
         $body = $response->body;
 
         // Empty result (DDL/DML or empty SELECT)
@@ -256,15 +257,9 @@ final class Database
             return [];
         }
 
-        // The SQL endpoint returns Arrow IPC bytes. Decode as JSON if possible
-        // (some daemon versions may return JSON for simple queries).
         $json = json_decode($body, true);
-        if (is_array($json)) {
-            return $json;
-        }
 
-        // Arrow IPC binary - return empty (use sqlRows via Kit query for JSON)
-        return [];
+        return is_array($json) ? $json : [];
     }
 
     // ── Schema ──────────────────────────────────────────────────────────────

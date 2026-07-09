@@ -23,6 +23,21 @@ final class LiveIntegrationTest extends LiveTestCase
         return $prefix . '_' . substr(md5(uniqid('', true)), 0, 8);
     }
 
+    /**
+     * Extract a column value from a flat Kit row `cells` array
+     * (shape: [col_id, value, col_id, value, ...]).
+     */
+    private function cellValue(array $cells, int $colId): mixed
+    {
+        for ($i = 0, $n = count($cells); $i < $n; $i += 2) {
+            if ($cells[$i] === $colId) {
+                return $cells[$i + 1] ?? null;
+            }
+        }
+
+        return null;
+    }
+
     #[Test]
     public function health_returns_true_against_real_daemon(): void
     {
@@ -73,8 +88,37 @@ final class LiveIntegrationTest extends LiveTestCase
             ->where('range', ['column' => 2, 'min' => 100, 'max' => 150]);
         $rows = $query->execute();
 
-        $this->assertGreaterThanOrEqual(1, count($rows), 'range query should return at least 1 row');
+        // Only the row with amount=120 (pk=2) falls in [100, 150].
+        $this->assertCount(1, $rows, 'range query should return exactly the matching row');
         $this->assertFalse($query->truncated());
+        // Verify the PK values of returned rows match the filter range.
+        foreach ($rows as $row) {
+            $cells = $row['cells'] ?? [];
+            // cells is a flat [col_id, value, ...] array; pk is column 1.
+            $this->assertSame(2, $this->cellValue($cells, 1), 'returned row pk must be 2');
+            $amount = $this->cellValue($cells, 2);
+            $this->assertGreaterThanOrEqual(100, $amount);
+            $this->assertLessThanOrEqual(150, $amount);
+        }
+    }
+
+    #[Test]
+    public function upsert_updates_cell_value_visible_on_pk_query(): void
+    {
+        $tbl = $this->ut();
+        $this->withFreshTable($tbl, [
+            ['id' => 1, 'name' => 'id', 'ty' => 'int64', 'primary_key' => true, 'nullable' => false],
+            ['id' => 2, 'name' => 'amount', 'ty' => 'float64', 'primary_key' => false, 'nullable' => false],
+        ]);
+        // Initial insert.
+        $this->db->upsert($tbl, [1 => 7, 2 => 10.0], updateCells: [2 => 10.0]);
+        // Update the amount cell on conflict.
+        $this->db->upsert($tbl, [1 => 7, 2 => 99.5], updateCells: [2 => 99.5]);
+
+        $rows = $this->db->query($tbl)->where('pk', ['value' => 7])->execute();
+        $this->assertCount(1, $rows);
+        $this->assertSame(7, $this->cellValue($rows[0]['cells'] ?? [], 1));
+        $this->assertSame(99.5, $this->cellValue($rows[0]['cells'] ?? [], 2));
     }
 
     #[Test]
@@ -89,6 +133,8 @@ final class LiveIntegrationTest extends LiveTestCase
 
         $rows = $this->db->query($tbl)->where('pk', ['value' => 42])->execute();
         $this->assertCount(1, $rows);
+        // The returned row must carry the queried PK value.
+        $this->assertSame(42, $this->cellValue($rows[0]['cells'] ?? [], 1));
     }
 
     #[Test]
@@ -124,10 +170,23 @@ final class LiveIntegrationTest extends LiveTestCase
     }
 
     #[Test]
-    public function sql_select_runs_without_error(): void
+    public function sql_insert_increases_count_and_select_returns_rows(): void
     {
-        $this->expectNotToPerformAssertions();
-        $this->db->sql('SELECT 1');
+        $tbl = $this->ut();
+        $this->withFreshTable($tbl, [
+            ['id' => 1, 'name' => 'id', 'ty' => 'int64', 'primary_key' => true, 'nullable' => false],
+            ['id' => 2, 'name' => 'name', 'ty' => 'varchar', 'primary_key' => false, 'nullable' => false],
+        ]);
+
+        $this->assertSame(0, $this->db->count($tbl));
+        $this->db->sql("INSERT INTO {$tbl} (id, name) VALUES (1,'Alice')");
+        $this->assertSame(1, $this->db->count($tbl), 'count must increase after INSERT');
+
+        // JSON SQL mode returns row objects keyed by column name.
+        $rows = $this->db->sql("SELECT id, name FROM {$tbl}");
+        $this->assertCount(1, $rows, 'SELECT via JSON mode should return the inserted row');
+        $this->assertSame(1, $rows[0]['id'] ?? null);
+        $this->assertSame('Alice', $rows[0]['name'] ?? null);
     }
 
     #[Test]

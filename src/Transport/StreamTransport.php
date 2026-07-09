@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Visorcraft\MongrelDB\Transport;
 
 use Visorcraft\MongrelDB\Exceptions\ConnectionException;
+use Visorcraft\MongrelDB\Exceptions\QueryException;
 
 /**
  * Stream-based HTTP transport - fallback when cURL is not available.
@@ -14,6 +15,12 @@ use Visorcraft\MongrelDB\Exceptions\ConnectionException;
  */
 final class StreamTransport implements TransportInterface
 {
+    /**
+     * Maximum response body size (256 MB). Guards against a malicious or
+     * buggy server exhausting client memory with an oversized payload.
+     */
+    public const int MAX_RESPONSE_BYTES = 268435456;
+
     /**
      * @param int $timeout Total request timeout (seconds)
      */
@@ -56,6 +63,13 @@ final class StreamTransport implements TransportInterface
             throw new ConnectionException(
                 'HTTP request failed: unable to connect to the daemon',
             );
+        }
+
+        if (strlen((string) $body_response) > self::MAX_RESPONSE_BYTES) {
+            throw new QueryException(sprintf(
+                'Response body exceeds maximum size of %d bytes',
+                self::MAX_RESPONSE_BYTES,
+            ));
         }
 
         // Parse status code and headers from the response. PHP 8.5 deprecated the
