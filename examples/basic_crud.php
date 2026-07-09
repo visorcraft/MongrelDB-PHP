@@ -23,45 +23,52 @@ if (!$db->health()) {
 
 echo "Connected to MongrelDB\n";
 
+// Unique table name per run so re-running the example never collides with a
+// leftover table from a previous (possibly failed) run.
+$table = 'users_' . time();
+
+try {
 // Create a table
-$db->createTable('users', [
+$db->createTable($table, [
     ['id' => 1, 'name' => 'id',    'ty' => 'int64',   'primary_key' => true,  'nullable' => false],
     ['id' => 2, 'name' => 'name',  'ty' => 'varchar', 'primary_key' => false, 'nullable' => false],
     ['id' => 3, 'name' => 'email', 'ty' => 'varchar', 'primary_key' => false, 'nullable' => false],
     ['id' => 4, 'name' => 'score', 'ty' => 'float64', 'primary_key' => false, 'nullable' => true],
 ]);
 
-echo "Created table 'users'\n";
+echo "Created table '{$table}'\n";
 
 // Insert rows
-$db->put('users', [1 => 1, 2 => 'Alice',   3 => 'alice@example.com',  4 => 95.5]);
-$db->put('users', [1 => 2, 2 => 'Bob',     3 => 'bob@example.com',    4 => 82.0]);
-$db->put('users', [1 => 3, 2 => 'Charlie', 3 => 'charlie@example.com', 4 => 78.3]);
+$db->put($table, [1 => 1, 2 => 'Alice',   3 => 'alice@example.com',  4 => 95.5]);
+$db->put($table, [1 => 2, 2 => 'Bob',     3 => 'bob@example.com',    4 => 82.0]);
+$db->put($table, [1 => 3, 2 => 'Charlie', 3 => 'charlie@example.com', 4 => 78.3]);
 
 echo "Inserted 3 rows\n";
 
 // Query all
-$rows = $db->query('users')->execute();
+$rows = $db->query($table)->execute();
 echo "All users: " . count($rows) . " rows\n";
 
-// Query with range condition
-$highScorers = $db->query('users')
-    ->where('range', ['column' => 4, 'min' => 80.0])
+// Query with range condition. Column 4 (score) is float64, so use range_f64
+// (plain "range" expects an int64 column).
+$highScorers = $db->query($table)
+    ->where('range_f64', ['column' => 4, 'min' => 80.0, 'max' => 200.0, 'min_inclusive' => true, 'max_inclusive' => true])
     ->execute();
-echo "High scorers (>80): " . count($highScorers) . " rows\n";
+echo "High scorers (>=80): " . count($highScorers) . " rows\n";
 
 // Upsert (update existing)
-$db->upsert('users', [1 => 1, 2 => 'Alice', 3 => 'alice@example.com', 4 => 100.0], updateCells: [4 => 100.0]);
+$db->upsert($table, [1 => 1, 2 => 'Alice', 3 => 'alice@example.com', 4 => 100.0], updateCells: [4 => 100.0]);
 echo "Updated Alice's score to 100.0\n";
 
 // Count
-echo "Total users: " . $db->count('users') . "\n";
+echo "Total users: " . $db->count($table) . "\n";
 
 // Delete
-$db->deleteByPk('users', 3);
+$db->deleteByPk($table, 3);
 echo "Deleted Charlie\n";
-echo "Remaining users: " . $db->count('users') . "\n";
-
-// Cleanup
-$db->dropTable('users');
-echo "Dropped table 'users'\n";
+echo "Remaining users: " . $db->count($table) . "\n";
+} finally {
+    // Always clean up, even if something above threw.
+    $db->dropTable($table);
+    echo "Dropped table '{$table}'\n";
+}
