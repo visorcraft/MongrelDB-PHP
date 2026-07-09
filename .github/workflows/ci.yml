@@ -80,7 +80,7 @@ jobs:
         id: server-cache
         with:
           path: ~/.cargo/bin/mongreldb-server
-          key: mongreldb-server-${{ runner.os }}-0.44.1
+          key: mongreldb-server-${{ runner.os }}-0.44.1-json
 
       - name: Install mongreldb-server
         if: steps.server-cache.outputs.cache-hit != 'true'
@@ -150,7 +150,7 @@ jobs:
         id: server-cache
         with:
           path: ~/.cargo/bin/mongreldb-server
-          key: mongreldb-server-${{ runner.os }}-0.44.1
+          key: mongreldb-server-${{ runner.os }}-0.44.1-json
 
       - name: Install mongreldb-server
         if: steps.server-cache.outputs.cache-hit != 'true'
