@@ -59,7 +59,9 @@ final class MongrelDB
             $headers['Authorization'] = "Bearer {$token}";
         } elseif ($username !== null) {
             self::assertNoCrlf($username, 'username');
-            $password ?? self::assertNoCrlf($password ?? '', 'password');
+            if ($password !== null) {
+                self::assertNoCrlf($password, 'password');
+            }
             $credentials = base64_encode("{$username}:" . ($password ?? ''));
             $headers['Authorization'] = "Basic {$credentials}";
         }
