@@ -57,31 +57,50 @@ use Visorcraft\MongrelDB\Database;
 // Connect to a running mongreldb-server daemon
 $db = new Database('http://127.0.0.1:8453');
 
-// Create a table
-$db->createTable('orders', [
-    ['id' => 1, 'name' => 'id',       'ty' => 'int64',  'primary_key' => true,  'nullable' => false],
-    ['id' => 2, 'name' => 'customer', 'ty' => 'varchar','primary_key' => false, 'nullable' => false],
-    ['id' => 3, 'name' => 'amount',   'ty' => 'float64','primary_key' => false, 'nullable' => false],
+// Create a table with an enum column, a regex CHECK, and a server-side default
+$db->getClient()->post('/kit/create_table', [
+    'name' => 'orders',
+    'columns' => [
+        ['id' => 1, 'name' => 'id',             'ty' => 'int64',           'primary_key' => true,  'nullable' => false],
+        ['id' => 2, 'name' => 'customer_email', 'ty' => 'varchar',         'primary_key' => false, 'nullable' => false],
+        ['id' => 3, 'name' => 'amount',         'ty' => 'float64',         'primary_key' => false, 'nullable' => false],
+        ['id' => 4, 'name' => 'status',         'ty' => 'enum',            'primary_key' => false, 'nullable' => false,
+         'enum_variants' => ['new', 'paid', 'cancelled']],
+        ['id' => 5, 'name' => 'created_at',     'ty' => 'timestamp_nanos', 'primary_key' => false, 'nullable' => false,
+         'default_value' => 'now'],
+    ],
+    'constraints' => [
+        'checks' => [[
+            'id' => 1,
+            'name' => 'ck_customer_email',
+            'expr' => ['Regex' => [
+                'col' => 2,
+                'pattern' => '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$',
+                'negated' => false,
+                'case_insensitive' => true,
+            ]],
+        ]],
+    ],
 ]);
 
-// Insert rows
-$db->put('orders', [1 => 1, 2 => 'Alice', 3 => 99.50]);
-$db->put('orders', [1 => 2, 2 => 'Bob',   3 => 150.00]);
+// Insert rows; created_at is filled by the default_value above
+$db->put('orders', [1 => 1, 2 => 'alice@example.com', 3 => 99.50,  4 => 'new']);
+$db->put('orders', [1 => 2, 2 => 'bob@example.com',   3 => 150.00, 4 => 'paid']);
 
 // Upsert (insert or update on PK conflict)
-$db->upsert('orders', [1 => 1, 2 => 'Alice', 3 => 120.00], updateCells: [3 => 120.00]);
+$db->upsert('orders', [1 => 1, 2 => 'alice@example.com', 3 => 120.00, 4 => 'paid'], updateCells: [3 => 120.00, 4 => 'paid']);
 
 // Query with a native index condition (learned-range index)
 $rows = $db->query('orders')
     ->where('range', ['column' => 3, 'min' => 100.0])
-    ->projection([1, 2])
+    ->projection([1, 2, 4])
     ->limit(100)
     ->execute();
 
 echo $db->count('orders'); // 2
 
 // Run SQL
-$db->sql("UPDATE orders SET amount = 200.0 WHERE customer = 'Bob'");
+$db->sql("UPDATE orders SET amount = 200.0 WHERE customer_email = 'bob@example.com'");
 ```
 
 ## Authentication
@@ -230,6 +249,9 @@ try {
 }
 ```
 
+Enum-domain failures and regex/check-constraint failures are reported by the
+server as `ConstraintException` with `$e->errorCode === 'CHECK_VIOLATION'`.
+
 ## API reference
 
 ### `Database` class
@@ -270,6 +292,37 @@ try {
 | `compact(): array` | Compact all tables |
 | `compactTable(string $name): array` | Compact one table |
 | `beginTransaction(): Transaction` | Start a batch |
+
+`createTable()` forwards each column array unchanged in the `columns` payload.
+Column specs accept the standard keys (`id`, `name`, `ty`, `primary_key`,
+`nullable`, `auto_increment`, `encrypted`, `encrypted_indexable`) plus:
+
+| Column key | Description |
+|------------|-------------|
+| `enum_variants` | String variants for `ty => 'enum'`; required and non-empty for enum columns |
+| `default_value` | Server default expression string, such as `now` for `timestamp_nanos`/`varchar` or `uuid` for `varchar`; the daemon also accepts `default_expr` |
+
+Table-level check constraints are sent on the raw Kit create-table payload under
+`constraints.checks`:
+
+```php
+$db->getClient()->post('/kit/create_table', [
+    'name' => 'orders',
+    'columns' => $columns,
+    'constraints' => [
+        'checks' => [[
+            'id' => 1,
+            'name' => 'ck_email',
+            'expr' => ['Regex' => [
+                'col' => 2,
+                'pattern' => '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$',
+                'negated' => false,
+                'case_insensitive' => true,
+            ]],
+        ]],
+    ],
+]);
+```
 
 ### `QueryBuilder` class
 

@@ -19,6 +19,7 @@
             <file>tests/PersistentSharingTest.php</file>
             <file>tests/QueryBuilderConformanceTest.php</file>
             <file>tests/HttpConformanceTest.php</file>
+            <file>tests/KitCreateTableConformanceTest.php</file>
         </testsuite>
         <testsuite name="live">
             <!-- Live integration tests against a real mongreldb-server daemon.

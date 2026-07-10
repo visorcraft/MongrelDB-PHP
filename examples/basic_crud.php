@@ -28,20 +28,39 @@ echo "Connected to MongrelDB\n";
 $table = 'users_' . time();
 
 try {
-// Create a table
-$db->createTable($table, [
-    ['id' => 1, 'name' => 'id',    'ty' => 'int64',   'primary_key' => true,  'nullable' => false],
-    ['id' => 2, 'name' => 'name',  'ty' => 'varchar', 'primary_key' => false, 'nullable' => false],
-    ['id' => 3, 'name' => 'email', 'ty' => 'varchar', 'primary_key' => false, 'nullable' => false],
-    ['id' => 4, 'name' => 'score', 'ty' => 'float64', 'primary_key' => false, 'nullable' => true],
+// Create a table with an enum, a regex CHECK, and a server-side default.
+$db->getClient()->post('/kit/create_table', [
+    'name' => $table,
+    'columns' => [
+        ['id' => 1, 'name' => 'id',         'ty' => 'int64',           'primary_key' => true,  'nullable' => false],
+        ['id' => 2, 'name' => 'name',       'ty' => 'varchar',         'primary_key' => false, 'nullable' => false],
+        ['id' => 3, 'name' => 'email',      'ty' => 'varchar',         'primary_key' => false, 'nullable' => false],
+        ['id' => 4, 'name' => 'score',      'ty' => 'float64',         'primary_key' => false, 'nullable' => true],
+        ['id' => 5, 'name' => 'status',     'ty' => 'enum',            'primary_key' => false, 'nullable' => false,
+         'enum_variants' => ['active', 'inactive']],
+        ['id' => 6, 'name' => 'created_at', 'ty' => 'timestamp_nanos', 'primary_key' => false, 'nullable' => false,
+         'default_value' => 'now'],
+    ],
+    'constraints' => [
+        'checks' => [[
+            'id' => 1,
+            'name' => 'ck_user_email',
+            'expr' => ['Regex' => [
+                'col' => 3,
+                'pattern' => '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$',
+                'negated' => false,
+                'case_insensitive' => true,
+            ]],
+        ]],
+    ],
 ]);
 
 echo "Created table '{$table}'\n";
 
-// Insert rows
-$db->put($table, [1 => 1, 2 => 'Alice',   3 => 'alice@example.com',  4 => 95.5]);
-$db->put($table, [1 => 2, 2 => 'Bob',     3 => 'bob@example.com',    4 => 82.0]);
-$db->put($table, [1 => 3, 2 => 'Charlie', 3 => 'charlie@example.com', 4 => 78.3]);
+// Insert rows; created_at is filled by the default_value above.
+$db->put($table, [1 => 1, 2 => 'Alice',   3 => 'alice@example.com',   4 => 95.5, 5 => 'active']);
+$db->put($table, [1 => 2, 2 => 'Bob',     3 => 'bob@example.com',     4 => 82.0, 5 => 'active']);
+$db->put($table, [1 => 3, 2 => 'Charlie', 3 => 'charlie@example.com', 4 => 78.3, 5 => 'inactive']);
 
 echo "Inserted 3 rows\n";
 
@@ -57,7 +76,7 @@ $highScorers = $db->query($table)
 echo "High scorers (>=80): " . count($highScorers) . " rows\n";
 
 // Upsert (update existing)
-$db->upsert($table, [1 => 1, 2 => 'Alice', 3 => 'alice@example.com', 4 => 100.0], updateCells: [4 => 100.0]);
+$db->upsert($table, [1 => 1, 2 => 'Alice', 3 => 'alice@example.com', 4 => 100.0, 5 => 'active'], updateCells: [4 => 100.0]);
 echo "Updated Alice's score to 100.0\n";
 
 // Count

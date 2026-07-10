@@ -540,6 +540,43 @@ final class AdversarialTest extends TestCase
     }
 
     #[Test]
+    public function create_table_preserves_new_column_spec_keys(): void
+    {
+        $transport = new MockTransport();
+        $transport->addResponse(new Response(200, json_encode(['table_id' => 1])));
+        $db = $this->makeDatabase($transport);
+
+        $db->createTable('orders', [
+            ['id' => 1, 'name' => 'id', 'ty' => 'int64', 'primary_key' => true, 'nullable' => false],
+            [
+                'id' => 2,
+                'name' => 'status',
+                'ty' => 'enum',
+                'primary_key' => false,
+                'nullable' => false,
+                'enum_variants' => ['new', 'paid', 'cancelled'],
+            ],
+            [
+                'id' => 3,
+                'name' => 'created_at',
+                'ty' => 'timestamp_nanos',
+                'primary_key' => false,
+                'nullable' => false,
+                'default_value' => 'now',
+            ],
+        ]);
+
+        $body = $transport->getLastRequest()['body'];
+        $this->assertIsString($body);
+        $this->assertStringContainsString('"enum_variants":["new","paid","cancelled"]', $body);
+        $this->assertStringContainsString('"default_value":"now"', $body);
+
+        $payload = json_decode($body, true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame(['new', 'paid', 'cancelled'], $payload['columns'][1]['enum_variants']);
+        $this->assertSame('now', $payload['columns'][2]['default_value']);
+    }
+
+    #[Test]
     public function empty_error_body(): void
     {
         $transport = new MockTransport();
