@@ -360,18 +360,14 @@ final class Database
     /**
      * List all usernames.
      *
-     * NOTE: The /sql endpoint returns Arrow IPC bytes, not JSON. Until a
-     * JSON user-listing endpoint is available, this method returns an empty
-     * array (the SHOW USERS statement itself still executes; use it via
-     * sqlRaw() for the raw Arrow bytes). This does NOT indicate an error.
+     * Executes `SHOW USERS` via {@see sql()} (JSON result format) and returns
+     * the decoded rows.
      *
-     * @return array<int,string>
+     * @return array<int,array<string,mixed>> Result rows (e.g. [{"username":"admin"},...])
      */
     public function users(): array
     {
-        $this->client->post('/sql', ['sql' => 'SHOW USERS']);
-
-        return [];
+        return $this->sql('SHOW USERS');
     }
 
     /**
@@ -397,17 +393,14 @@ final class Database
     /**
      * List all role names.
      *
-     * NOTE: Like users(), this returns [] until a JSON role-listing endpoint
-     * is available (the /sql endpoint returns Arrow IPC bytes). The SHOW ROLES
-     * statement still executes; use sqlRaw() for the raw bytes.
+     * Executes `SHOW ROLES` via {@see sql()} (JSON result format) and returns
+     * the decoded rows.
      *
-     * @return array<int,string>
+     * @return array<int,array<string,mixed>> Result rows (e.g. [{"role":"reader"},...])
      */
     public function roles(): array
     {
-        $this->client->post('/sql', ['sql' => 'SHOW ROLES']);
-
-        return [];
+        return $this->sql('SHOW ROLES');
     }
 
     /**

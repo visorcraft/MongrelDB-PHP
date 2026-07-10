@@ -1117,25 +1117,25 @@ final class AdversarialTest3 extends TestCase
     #[Test]
     public function users_sends_show_users_sql(): void
     {
-        // The /sql endpoint returns Arrow IPC (not JSON), so users() returns
-        // [] until a JSON user-listing endpoint exists. This test verifies the
-        // SHOW USERS statement is sent correctly.
+        // users() now routes through sql(), requesting the JSON result format
+        // and parsing the response. An empty body (e.g. DDL) yields [].
         $transport = new MockTransport();
-        $transport->addResponse(new Response(200, '')); // empty Arrow body
+        $transport->addResponse(new Response(200, '')); // empty body
         $db = $this->makeDatabase($transport);
 
         $users = $db->users();
         $this->assertSame([], $users);
 
         $lastRequest = $transport->getLastRequest();
-        $sql = json_decode($lastRequest['body'], true)['sql'];
-        $this->assertSame('SHOW USERS', $sql);
+        $body = json_decode($lastRequest['body'], true);
+        $this->assertSame('SHOW USERS', $body['sql']);
+        $this->assertSame('json', $body['format']);
     }
 
     #[Test]
     public function roles_sends_show_roles_sql(): void
     {
-        // Same as users(): SHOW ROLES returns Arrow IPC, so roles() returns [].
+        // Same as users(): roles() routes through sql() and parses JSON.
         $transport = new MockTransport();
         $transport->addResponse(new Response(200, ''));
         $db = $this->makeDatabase($transport);
@@ -1144,8 +1144,9 @@ final class AdversarialTest3 extends TestCase
         $this->assertSame([], $roles);
 
         $lastRequest = $transport->getLastRequest();
-        $sql = json_decode($lastRequest['body'], true)['sql'];
-        $this->assertSame('SHOW ROLES', $sql);
+        $body = json_decode($lastRequest['body'], true);
+        $this->assertSame('SHOW ROLES', $body['sql']);
+        $this->assertSame('json', $body['format']);
     }
 
     #[Test]
@@ -1160,8 +1161,26 @@ final class AdversarialTest3 extends TestCase
     }
 
     #[Test]
+    public function users_returns_parsed_rows(): void
+    {
+        // users() now returns the decoded JSON rows verbatim instead of [].
+        $transport = new MockTransport();
+        $rows = [
+            ['username' => 'admin'],
+            ['username' => 'alice'],
+        ];
+        $transport->addResponse(new Response(200, json_encode($rows)));
+        $db = $this->makeDatabase($transport);
+
+        $users = $db->users();
+        $this->assertSame($rows, $users);
+    }
+
+    #[Test]
     public function users_missing_username_key(): void
     {
+        // Rows are returned verbatim; the raw decoded rows come back even when
+        // individual row objects use unexpected keys.
         $transport = new MockTransport();
         $transport->addResponse(new Response(200, json_encode([
             ['name' => 'wrong_key'],
@@ -1169,8 +1188,7 @@ final class AdversarialTest3 extends TestCase
         $db = $this->makeDatabase($transport);
 
         $users = $db->users();
-        // array_column returns [] if the column doesn't exist
-        $this->assertSame([], $users);
+        $this->assertSame([['name' => 'wrong_key']], $users);
     }
 
     // ── Error status codes at boundaries ───────────────────────────────────
