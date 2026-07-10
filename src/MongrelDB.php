@@ -265,7 +265,7 @@ final class MongrelDB
      */
     public function sqlRaw(string $sql): string
     {
-        $response = $this->post('/sql', ['sql' => $sql]);
+        $response = $this->post('/sql', ['sql' => $sql, 'format' => 'arrow']);
 
         return $response->body;
     }

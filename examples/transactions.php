@@ -32,10 +32,12 @@ $db->put($table, [1 => 2, 2 => 'Savings',  3 => 5000.0]);
 // retry below so the retry replays the original result (no double-apply).
 $idempotencyKey = 'example-txn-' . time();
 
-// Atomic batch: transfer $500 from Checking to Savings
+// Atomic batch: transfer $500 from Checking to Savings. The rows already exist
+// from the initial put() above, so use upsert() with update_cells to set the
+// new balances. put() is insert-only and would raise a uniqueness violation.
 $txn = $db->beginTransaction();
-$txn->put($table, [1 => 1, 2 => 'Checking', 3 => 500.0]);   // overwrite with new balance
-$txn->put($table, [1 => 2, 2 => 'Savings',  3 => 5500.0]);  // overwrite with new balance
+$txn->upsert($table, [1 => 1, 2 => 'Checking', 3 => 500.0],  [3 => 500.0]);   // new balance
+$txn->upsert($table, [1 => 2, 2 => 'Savings',  3 => 5500.0], [3 => 5500.0]);  // new balance
 
 try {
     $results = $txn->commit(idempotencyKey: $idempotencyKey);
@@ -43,8 +45,8 @@ try {
 
     // Idempotent retry (same key) returns the original result
     $txn2 = $db->beginTransaction();
-    $txn2->put($table, [1 => 1, 2 => 'Checking', 3 => 500.0]);
-    $txn2->put($table, [1 => 2, 2 => 'Savings',  3 => 5500.0]);
+    $txn2->upsert($table, [1 => 1, 2 => 'Checking', 3 => 500.0],  [3 => 500.0]);
+    $txn2->upsert($table, [1 => 2, 2 => 'Savings',  3 => 5500.0], [3 => 5500.0]);
     $txn2->commit(idempotencyKey: $idempotencyKey);
 
     echo "Idempotent retry succeeded (no double-apply)\n";
