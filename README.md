@@ -371,7 +371,7 @@ Contributions are welcome. Please:
 
 ## History retention
 
-Use `historyRetentionEpochs()`, `setHistoryRetentionEpochs()`, and `earliestRetainedEpoch()` with MongrelDB 0.47.1+.
+Use `historyRetentionEpochs()`, `setHistoryRetentionEpochs()`, and `earliestRetainedEpoch()` with MongrelDB 0.48.0+.
 
 ## License
 
