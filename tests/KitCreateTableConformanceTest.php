@@ -63,6 +63,10 @@ final class KitCreateTableConformanceTest extends TestCase
                 'nullable' => false,
                 'default_value' => 'now',
             ],
+            ['id' => 4, 'name' => 'retries', 'ty' => 'int64', 'default_value' => 3],
+            ['id' => 5, 'name' => 'enabled', 'ty' => 'bool', 'default_value' => true],
+            ['id' => 6, 'name' => 'optional', 'ty' => 'varchar', 'default_value' => null],
+            ['id' => 7, 'name' => 'updated_at', 'ty' => 'timestamp', 'default_expr' => 'now'],
         ], [
             'checks' => [[
                 'id' => 1,
@@ -81,6 +85,10 @@ final class KitCreateTableConformanceTest extends TestCase
         $body = json_decode($captured['body'], true, 512, \JSON_THROW_ON_ERROR);
         $this->assertSame(['new', 'paid', 'cancelled'], $body['columns'][1]['enum_variants']);
         $this->assertSame('now', $body['columns'][2]['default_value']);
+        $this->assertSame(3, $body['columns'][3]['default_value']);
+        $this->assertTrue($body['columns'][4]['default_value']);
+        $this->assertNull($body['columns'][5]['default_value']);
+        $this->assertSame('now', $body['columns'][6]['default_expr']);
         $this->assertSame('ck_status', $body['constraints']['checks'][0]['name']);
         $this->assertSame(['IsNotNull' => 2], $body['constraints']['checks'][0]['expr']);
     }

@@ -369,6 +369,10 @@ Contributions are welcome. Please:
    `readonly` properties where applicable, and `#[\Override]` on overridden
    methods.
 
+## History retention
+
+Use `historyRetentionEpochs()`, `setHistoryRetentionEpochs()`, and `earliestRetainedEpoch()` with MongrelDB 0.47.1+.
+
 ## License
 
 Dual-licensed under the **MIT License** or the **Apache License, Version 2.0**,

@@ -68,6 +68,22 @@ final class Database
         return $this->client->health();
     }
 
+    public function historyRetentionEpochs(): int
+    {
+        return (int) ($this->client->get('/history/retention')->json()['history_retention_epochs'] ?? 0);
+    }
+
+    public function earliestRetainedEpoch(): int
+    {
+        return (int) ($this->client->get('/history/retention')->json()['earliest_retained_epoch'] ?? 0);
+    }
+
+    /** @return array{history_retention_epochs:int,earliest_retained_epoch:int} */
+    public function setHistoryRetentionEpochs(int $epochs): array
+    {
+        return $this->client->put('/history/retention', ['history_retention_epochs' => $epochs])->json();
+    }
+
     // ── Table management ────────────────────────────────────────────────────
 
     /**
