@@ -86,16 +86,21 @@ final class Database
      * Create a table with typed columns.
      *
      * @param string                   $name    Table name
-     * @param array<int,array>         $columns Column definitions
+     * @param array<int,array>         $columns     Column definitions
+     * @param array<string,mixed>      $constraints Optional table constraints
      *
      * @return int Table ID
      */
-    public function createTable(string $name, array $columns): int
+    public function createTable(string $name, array $columns, array $constraints = []): int
     {
-        $response = $this->client->post('/kit/create_table', [
+        $payload = [
             'name' => $name,
             'columns' => $columns,
-        ]);
+        ];
+        if ($constraints !== []) {
+            $payload['constraints'] = $constraints;
+        }
+        $response = $this->client->post('/kit/create_table', $payload);
         $data = $response->json();
 
         return is_array($data) ? ($data['table_id'] ?? 0) : 0;

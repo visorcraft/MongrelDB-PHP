@@ -41,7 +41,7 @@ final class KitCreateTableConformanceTest extends TestCase
     }
 
     #[Test]
-    public function create_table_preserves_enum_variants_and_default_value_keys(): void
+    public function create_table_preserves_columns_and_check_constraints(): void
     {
         $db = $this->recordingDatabase($captured);
 
@@ -63,6 +63,12 @@ final class KitCreateTableConformanceTest extends TestCase
                 'nullable' => false,
                 'default_value' => 'now',
             ],
+        ], [
+            'checks' => [[
+                'id' => 1,
+                'name' => 'ck_status',
+                'expr' => ['IsNotNull' => 2],
+            ]],
         ]);
 
         $this->assertSame(7, $tableId);
@@ -75,6 +81,8 @@ final class KitCreateTableConformanceTest extends TestCase
         $body = json_decode($captured['body'], true, 512, \JSON_THROW_ON_ERROR);
         $this->assertSame(['new', 'paid', 'cancelled'], $body['columns'][1]['enum_variants']);
         $this->assertSame('now', $body['columns'][2]['default_value']);
+        $this->assertSame('ck_status', $body['constraints']['checks'][0]['name']);
+        $this->assertSame(['IsNotNull' => 2], $body['constraints']['checks'][0]['expr']);
     }
 
     #[Test]

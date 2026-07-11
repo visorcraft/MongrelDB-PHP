@@ -260,7 +260,7 @@ server as `ConstraintException` with `$e->errorCode === 'CHECK_VIOLATION'`.
 |--------|-------------|
 | `health(): bool` | Check daemon health |
 | `tables(): array` | List table names |
-| `createTable(string $name, array $columns): int` | Create a table |
+| `createTable(string $name, array $columns, array $constraints = []): int` | Create a table |
 | `dropTable(string $name): void` | Drop a table |
 | `count(string $table): int` | Row count |
 | `put(string $table, array $cells, ?string $key): array` | Insert a row |
@@ -302,25 +302,21 @@ Column specs accept the standard keys (`id`, `name`, `ty`, `primary_key`,
 | `enum_variants` | String variants for `ty => 'enum'`; required and non-empty for enum columns |
 | `default_value` | Server default expression string, such as `now` for `timestamp_nanos`/`varchar` or `uuid` for `varchar`; the daemon also accepts `default_expr` |
 
-Table-level check constraints are sent on the raw Kit create-table payload under
+Table-level check constraints are passed as the optional third argument under
 `constraints.checks`:
 
 ```php
-$db->getClient()->post('/kit/create_table', [
-    'name' => 'orders',
-    'columns' => $columns,
-    'constraints' => [
-        'checks' => [[
-            'id' => 1,
-            'name' => 'ck_email',
-            'expr' => ['Regex' => [
-                'col' => 2,
-                'pattern' => '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$',
-                'negated' => false,
-                'case_insensitive' => true,
-            ]],
+$db->createTable('orders', $columns, [
+    'checks' => [[
+        'id' => 1,
+        'name' => 'ck_email',
+        'expr' => ['Regex' => [
+            'col' => 2,
+            'pattern' => '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$',
+            'negated' => false,
+            'case_insensitive' => true,
         ]],
-    ],
+    ]],
 ]);
 ```
 
