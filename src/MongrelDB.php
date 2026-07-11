@@ -226,6 +226,10 @@ final class MongrelDB
         $message = $json['error']['message'] ?? $body;
         $errorCode = $json['error']['code'] ?? '';
 
+        if (str_starts_with(strtolower($message), 'not found:')) {
+            throw new NotFoundException($message);
+        }
+
         throw match ($status) {
             401, 403 => new AuthException($message ?: "Authentication failed ({$status})"),
             404 => new NotFoundException($message ?: 'Resource not found'),
