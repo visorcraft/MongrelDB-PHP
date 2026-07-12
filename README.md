@@ -67,7 +67,7 @@ $db->getClient()->post('/kit/create_table', [
         ['id' => 4, 'name' => 'status',         'ty' => 'enum',            'primary_key' => false, 'nullable' => false,
          'enum_variants' => ['new', 'paid', 'cancelled']],
         ['id' => 5, 'name' => 'created_at',     'ty' => 'timestamp_nanos', 'primary_key' => false, 'nullable' => false,
-         'default_value' => 'now'],
+         'default_expr' => 'now'],
     ],
     'constraints' => [
         'checks' => [[
@@ -195,8 +195,8 @@ $db->grantRole('alice', 'analyst');
 
 if ($db->verifyUser('alice', 'alice-pw')) { echo "Authenticated\n"; }
 
-print_r($db->users());   // ['admin', 'alice']
-print_r($db->roles());   // ['analyst']
+print_r($db->users());   // [['username' => 'admin'], ['username' => 'alice']]
+print_r($db->roles());   // [['role' => 'analyst']]
 ```
 
 ## Performance: persistent cURL sharing (PHP 8.5+)
@@ -259,12 +259,15 @@ server as `ConstraintException` with `$e->errorCode === 'CHECK_VIOLATION'`.
 | Method | Description |
 |--------|-------------|
 | `health(): bool` | Check daemon health |
+| `historyRetentionEpochs(): int` | Current history-retention window (epochs) |
+| `earliestRetainedEpoch(): int` | Oldest epoch still queryable with `AS OF EPOCH` |
+| `setHistoryRetentionEpochs(int $epochs): array` | Set the history-retention window; requires admin |
 | `tables(): array` | List table names |
 | `createTable(string $name, array $columns, array $constraints = []): int` | Create a table |
 | `dropTable(string $name): void` | Drop a table |
 | `count(string $table): int` | Row count |
-| `put(string $table, array $cells, ?string $key): array` | Insert a row |
-| `upsert(string $table, array $cells, ?array $update, ?string $key): array` | Upsert a row |
+| `put(string $table, array $cells, ?string $idempotencyKey): array` | Insert a row |
+| `upsert(string $table, array $cells, ?array $updateCells, ?string $idempotencyKey): array` | Upsert a row |
 | `delete(string $table, int $rowId): void` | Delete by row ID |
 | `deleteByPk(string $table, mixed $pk): void` | Delete by primary key |
 | `query(string $table): QueryBuilder` | Start a native query |
@@ -276,10 +279,10 @@ server as `ConstraintException` with `$e->errorCode === 'CHECK_VIOLATION'`.
 | `alterPassword(string $user, string $pw): void` | Change a password |
 | `verifyUser(string $user, string $pw): bool` | Verify credentials |
 | `setUserAdmin(string $user, bool $isAdmin): void` | Grant/revoke admin |
-| `users(): array` | List usernames |
+| `users(): array` | List users (row objects with a `username` key) |
 | `createRole(string $name): void` | Create a role |
 | `dropRole(string $name): void` | Drop a role |
-| `roles(): array` | List role names |
+| `roles(): array` | List roles (row objects with a `role` key) |
 | `grantRole(string $user, string $role): void` | Grant role to user |
 | `revokeRole(string $user, string $role): void` | Revoke role from user |
 | `grantPermission(string $role, string $perm): void` | Grant permission |
@@ -300,7 +303,27 @@ Column specs accept the standard keys (`id`, `name`, `ty`, `primary_key`,
 | Column key | Description |
 |------------|-------------|
 | `enum_variants` | String variants for `ty => 'enum'`; required and non-empty for enum columns |
-| `default_value` | Server default expression string, such as `now` for `timestamp_nanos`/`varchar` or `uuid` for `varchar`; the daemon also accepts `default_expr` |
+| `default_value` | Static JSON scalar default filled in when a row omits the column. Explicit `null` stays a static null; a missing key means no default. Literal strings `"now"` or `"uuid"` here are static, not dynamic. |
+| `default_expr` | Dynamic default expression; only `"now"` and `"uuid"` are accepted by the server. Use this instead of `default_value` for dynamic defaults. |
+
+All supported static-default shapes pass through with their original JSON types:
+
+```php
+$db->createTable('events', [
+    ['id' => 1, 'name' => 'message', 'ty' => 'varchar', 'primary_key' => false, 'nullable' => false,
+     'default_value' => 'none'],
+    ['id' => 2, 'name' => 'count',   'ty' => 'int64',   'primary_key' => false, 'nullable' => false,
+     'default_value' => 0],
+    ['id' => 3, 'name' => 'active',  'ty' => 'bool',    'primary_key' => false, 'nullable' => false,
+     'default_value' => true],
+    ['id' => 4, 'name' => 'extra',   'ty' => 'varchar', 'primary_key' => false, 'nullable' => true,
+     'default_value' => null],          // explicit JSON null
+    ['id' => 5, 'name' => 'tag',     'ty' => 'varchar', 'primary_key' => false, 'nullable' => false,
+     'default_value' => 'now'],         // static literal, not dynamic
+    ['id' => 6, 'name' => 'created', 'ty' => 'timestamp', 'primary_key' => false, 'nullable' => false,
+     'default_expr' => 'now'],          // dynamic default
+]);
+```
 
 Table-level check constraints are passed as the optional third argument under
 `constraints.checks`:
@@ -335,27 +358,30 @@ $db->createTable('orders', $columns, [
 | Method | Description |
 |--------|-------------|
 | `put(string $table, array $cells): static` | Stage an insert |
-| `upsert(string $table, array $cells, ?array $update): static` | Stage an upsert |
+| `upsert(string $table, array $cells, ?array $updateCells): static` | Stage an upsert |
 | `delete(string $table, int $rowId): static` | Stage a delete |
 | `deleteByPk(string $table, mixed $pk): static` | Stage a delete by PK |
-| `commit(?string $key): array` | Commit atomically |
+| `commit(?string $idempotencyKey): array` | Commit atomically |
 | `rollback(): void` | Discard all operations |
 | `count(): int` | Number of staged operations |
 
 ## Building and testing
 
-The test suite uses PHPUnit 12 and is fully offline - it does **not** require a
-running daemon (a mock transport intercepts all HTTP calls).
+The project uses PHPUnit 12 and has two testsuites:
+
+- `unit` — fast offline conformance tests using a mock HTTP transport.
+- `live` — integration tests against a real `mongreldb-server`. They skip
+  automatically when `MONGRELDB_URL` is unset or unreachable.
 
 ```sh
 composer install
-composer test              # runs the full suite
-vendor/bin/phpunit         # equivalent
+vendor/bin/phpunit --testsuite unit
+vendor/bin/phpunit --testsuite live     # requires a daemon at http://127.0.0.1:8453
 ```
 
-The suite covers 273 tests across SQL-injection hardening, JSON edge cases
-(INF/NAN, malformed UTF-8, recursion), transport behavior, transaction state
-machines, and the optional persistent-sharing feature.
+The unit suite exercises the HTTP contract, SQL-injection hardening, JSON edge
+cases (INF/NAN, malformed UTF-8, recursion), transport behavior, transaction
+state machines, and the optional persistent-sharing feature.
 
 ## Contributing
 
@@ -371,7 +397,20 @@ Contributions are welcome. Please:
 
 ## History retention
 
-Use `historyRetentionEpochs()`, `setHistoryRetentionEpochs()`, and `earliestRetainedEpoch()` with MongrelDB 0.48.0+.
+History retention controls how far back `AS OF EPOCH` time-travel queries can
+read. Use these methods with `mongreldb-server` 0.48.0+:
+
+```php
+$window   = $db->historyRetentionEpochs();   // current retention window
+$earliest = $db->earliestRetainedEpoch();    // oldest readable epoch
+
+// Increase the window. Requires admin auth. Increasing retention cannot
+// restore history already pruned past the previous earliest epoch.
+$db->setHistoryRetentionEpochs($window + 10);
+
+// Query historical state.
+$rows = $db->sql('SELECT id FROM orders AS OF EPOCH ' . (int) $earliest);
+```
 
 ## License
 

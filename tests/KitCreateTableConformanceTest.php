@@ -66,7 +66,9 @@ final class KitCreateTableConformanceTest extends TestCase
             ['id' => 4, 'name' => 'retries', 'ty' => 'int64', 'default_value' => 3],
             ['id' => 5, 'name' => 'enabled', 'ty' => 'bool', 'default_value' => true],
             ['id' => 6, 'name' => 'optional', 'ty' => 'varchar', 'default_value' => null],
-            ['id' => 7, 'name' => 'updated_at', 'ty' => 'timestamp', 'default_expr' => 'now'],
+            ['id' => 7, 'name' => 'tag', 'ty' => 'varchar', 'default_value' => 'uuid'],
+            ['id' => 8, 'name' => 'updated_at', 'ty' => 'timestamp', 'default_expr' => 'now'],
+            ['id' => 9, 'name' => 'uuid_col', 'ty' => 'varchar', 'default_expr' => 'uuid'],
         ], [
             'checks' => [[
                 'id' => 1,
@@ -88,7 +90,9 @@ final class KitCreateTableConformanceTest extends TestCase
         $this->assertSame(3, $body['columns'][3]['default_value']);
         $this->assertTrue($body['columns'][4]['default_value']);
         $this->assertNull($body['columns'][5]['default_value']);
-        $this->assertSame('now', $body['columns'][6]['default_expr']);
+        $this->assertSame('uuid', $body['columns'][6]['default_value']);
+        $this->assertSame('now', $body['columns'][7]['default_expr']);
+        $this->assertSame('uuid', $body['columns'][8]['default_expr']);
         $this->assertSame('ck_status', $body['constraints']['checks'][0]['name']);
         $this->assertSame(['IsNotNull' => 2], $body['constraints']['checks'][0]['expr']);
     }

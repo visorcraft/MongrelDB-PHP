@@ -21,13 +21,21 @@ use Visorcraft\MongrelDB\Transport\Response;
 final class HttpConformanceTest extends TestCase
 {
     /**
-     * Build a client whose transport records the last request.
+     * Build a client whose transport records the last request and returns a
+     * configurable canned response body.
      */
-    private function recordingClient(?array &$captured): MongrelDB
-    {
+    private function recordingClient(
+        ?array &$captured,
+        int $status = 200,
+        string $body = '{}',
+    ): MongrelDB {
         $captured = null;
-        $transport = new class ($captured) implements \Visorcraft\MongrelDB\Transport\TransportInterface {
-            public function __construct(public ?array &$cap) {}
+        $transport = new class ($captured, $status, $body) implements \Visorcraft\MongrelDB\Transport\TransportInterface {
+            public function __construct(
+                public ?array &$cap,
+                public int $responseStatus,
+                public string $responseBody,
+            ) {}
 
             public function request(
                 string $method,
@@ -42,7 +50,7 @@ final class HttpConformanceTest extends TestCase
                     'body' => $body,
                 ];
 
-                return new Response(200, '{}');
+                return new Response($this->responseStatus, $this->responseBody);
             }
         };
 
@@ -123,5 +131,40 @@ final class HttpConformanceTest extends TestCase
 
         $this->assertSame('POST', $cap['method']);
         $this->assertStringEndsWith('/sql', $cap['url']);
+    }
+
+    #[Test]
+    public function history_retention_get_uses_correct_path_and_parses_both_keys(): void
+    {
+        $retentionResponse = '{"history_retention_epochs":100,"earliest_retained_epoch":7}';
+
+        $client = $this->recordingClient($cap, 200, $retentionResponse);
+        $db = new Database(client: $client);
+
+        $this->assertSame(100, $db->historyRetentionEpochs());
+        $this->assertSame('GET', $cap['method']);
+        $this->assertStringEndsWith('/history/retention', $cap['url']);
+
+        $client = $this->recordingClient($cap, 200, $retentionResponse);
+        $db = new Database(client: $client);
+        $this->assertSame(7, $db->earliestRetainedEpoch());
+        $this->assertSame('GET', $cap['method']);
+        $this->assertStringEndsWith('/history/retention', $cap['url']);
+    }
+
+    #[Test]
+    public function set_history_retention_uses_put_with_single_key(): void
+    {
+        $client = $this->recordingClient($cap, 200, '{"history_retention_epochs":200}');
+        $db = new Database(client: $client);
+
+        $result = $db->setHistoryRetentionEpochs(200);
+        $this->assertSame('PUT', $cap['method']);
+        $this->assertStringEndsWith('/history/retention', $cap['url']);
+
+        $body = json_decode($cap['body'] ?? '', true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame(200, $body['history_retention_epochs']);
+        $this->assertArrayNotHasKey('earliest_retained_epoch', $body);
+        $this->assertSame(['history_retention_epochs' => 200], $result);
     }
 }
