@@ -165,6 +165,6 @@ final class HttpConformanceTest extends TestCase
         $body = json_decode($cap['body'] ?? '', true, 512, \JSON_THROW_ON_ERROR);
         $this->assertSame(200, $body['history_retention_epochs']);
         $this->assertArrayNotHasKey('earliest_retained_epoch', $body);
-        $this->assertSame(['history_retention_epochs' => 200], $result);
+        $this->assertSame(['history_retention_epochs' => 200, 'earliest_retained_epoch' => 0], $result);
     }
 }
