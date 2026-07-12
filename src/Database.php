@@ -70,18 +70,39 @@ final class Database
 
     public function historyRetentionEpochs(): int
     {
-        return (int) ($this->client->get('/history/retention')->json()['history_retention_epochs'] ?? 0);
+        $value = $this->client->get('/history/retention')->json()['history_retention_epochs'] ?? null;
+        return self::coerceU64($value);
     }
 
     public function earliestRetainedEpoch(): int
     {
-        return (int) ($this->client->get('/history/retention')->json()['earliest_retained_epoch'] ?? 0);
+        $value = $this->client->get('/history/retention')->json()['earliest_retained_epoch'] ?? null;
+        return self::coerceU64($value);
     }
 
     /** @return array{history_retention_epochs:int,earliest_retained_epoch:int} */
     public function setHistoryRetentionEpochs(int $epochs): array
     {
-        return $this->client->put('/history/retention', ['history_retention_epochs' => $epochs])->json();
+        $json = $this->client->put('/history/retention', ['history_retention_epochs' => $epochs])->json();
+        return [
+            'history_retention_epochs' => self::coerceU64($json['history_retention_epochs'] ?? null),
+            'earliest_retained_epoch' => self::coerceU64($json['earliest_retained_epoch'] ?? null),
+        ];
+    }
+
+    /**
+     * Coerce a JSON-decoded epoch value to a PHP int, rejecting values that
+     * exceed the signed-64-bit range (PHP has no native unsigned 64-bit type).
+     */
+    private static function coerceU64(mixed $value): int
+    {
+        if ($value === null) {
+            return 0;
+        }
+        if (is_float($value) && $value > PHP_INT_MAX) {
+            throw new QueryException('epoch value exceeds PHP_INT_MAX');
+        }
+        return (int) $value;
     }
 
     // ── Table management ────────────────────────────────────────────────────
