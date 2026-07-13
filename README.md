@@ -350,6 +350,7 @@ $db->createTable('orders', $columns, [
 | `where(string $type, array $params): static` | Add a native condition |
 | `projection(array $columnIds): static` | Set column projection |
 | `limit(int $limit): static` | Set row limit |
+| `offset(int $offset): static` | Skip matching rows before the limit |
 | `build(): array` | Build the request payload |
 | `execute(): array` | Run the query |
 

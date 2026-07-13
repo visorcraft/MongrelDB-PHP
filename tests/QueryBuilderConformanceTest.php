@@ -237,12 +237,13 @@ final class QueryBuilderConformanceTest extends TestCase
     public function projection_and_limit_use_canonical_keys(): void
     {
         $payload = $this->buildPayload(
-            fn ($q) => $q->where('pk', ['value' => 1])->projection([1, 2])->limit(50),
+            fn ($q) => $q->where('pk', ['value' => 1])->projection([1, 2])->limit(50)->offset(12),
         );
         $this->assertSame('orders', $payload['table']);
         $this->assertSame([['pk' => ['value' => 1]]], $payload['conditions']);
         $this->assertSame([1, 2], $payload['projection']);
         $this->assertSame(50, $payload['limit']);
+        $this->assertSame(12, $payload['offset']);
     }
 
     #[Test]
@@ -252,6 +253,7 @@ final class QueryBuilderConformanceTest extends TestCase
         $this->assertArrayNotHasKey('conditions', $payload);
         $this->assertArrayNotHasKey('projection', $payload);
         $this->assertArrayNotHasKey('limit', $payload);
+        $this->assertArrayNotHasKey('offset', $payload);
         $this->assertSame('orders', $payload['table']);
     }
 

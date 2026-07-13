@@ -43,6 +43,8 @@ final class QueryBuilder
 
     private ?int $limit = null;
 
+    private ?int $offset = null;
+
     /** Whether the last execute() result was truncated by the limit. */
     private bool $lastTruncated = false;
 
@@ -104,6 +106,14 @@ final class QueryBuilder
         return $this;
     }
 
+    /** Skip matching rows before applying the limit. */
+    public function offset(int $offset): static
+    {
+        $this->offset = $offset;
+
+        return $this;
+    }
+
     /**
      * Build the request payload.
      *
@@ -124,6 +134,10 @@ final class QueryBuilder
 
         if ($this->limit !== null) {
             $payload['limit'] = $this->limit;
+        }
+
+        if ($this->offset !== null) {
+            $payload['offset'] = $this->offset;
         }
 
         return $payload;
