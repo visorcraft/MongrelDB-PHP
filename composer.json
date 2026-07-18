@@ -1,9 +1,18 @@
 {
     "name": "visorcraft/mongreldb-php",
+    "version": "0.59.1",
     "description": "Pure PHP client for MongrelDB - a fast embedded+server database with SQL, vector search, full-text search, and AI-native retrieval.",
     "type": "library",
     "license": "MIT OR Apache-2.0",
-    "keywords": ["mongreldb", "database", "sql", "vector", "search", "embedded", "ai"],
+    "keywords": [
+        "mongreldb",
+        "database",
+        "sql",
+        "vector",
+        "search",
+        "embedded",
+        "ai"
+    ],
     "require": {
         "php": ">=8.4",
         "ext-curl": "*",
