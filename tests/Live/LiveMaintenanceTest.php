@@ -55,13 +55,13 @@ final class LiveMaintenanceTest extends LiveTestCase
 
         $this->assertSame(1, $this->db->count('php_live_idem'));
 
-        // Duplicate commit with the SAME key should be deduped by the server:
-        // it returns the original result and does NOT apply the op again.
+        // Replay with the SAME key and SAME payload is deduped by the server
+        // (0.59+ rejects same key + different payload).
         $txn2 = $this->db->beginTransaction();
-        $txn2->put('php_live_idem', [1 => 2]); // different value, same key
+        $txn2->put('php_live_idem', [1 => 1]);
         $txn2->commit(idempotencyKey: $key);
 
-        // Only one row should exist (the second op was deduped, not applied).
+        // Still only one row; the second commit was a no-op replay.
         $this->assertSame(1, $this->db->count('php_live_idem'));
     }
 

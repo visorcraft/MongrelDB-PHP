@@ -507,13 +507,16 @@ final class LiveFullCoverageTest extends LiveTestCase
     {
         $tbl = $this->makeTable();
         $key = 'txn-idem-' . uniqid();
+        $cells = [1 => 1, 2 => 'A', 3 => 1.0];
         $txn1 = $this->db->beginTransaction();
-        $txn1->put($tbl, [1 => 1, 2 => 'A', 3 => 1.0]);
+        $txn1->put($tbl, $cells);
         $txn1->commit(idempotencyKey: $key);
         $this->assertSame(1, $this->db->count($tbl));
 
+        // Same key + same payload replays without applying a second write
+        // (0.59+ rejects same key + different payload).
         $txn2 = $this->db->beginTransaction();
-        $txn2->put($tbl, [1 => 2, 2 => 'B', 3 => 2.0]);
+        $txn2->put($tbl, $cells);
         $txn2->commit(idempotencyKey: $key);
         $this->assertSame(1, $this->db->count($tbl));
     }
