@@ -1,6 +1,5 @@
 {
     "name": "visorcraft/mongreldb-php",
-    "version": "0.59.1",
     "description": "Pure PHP client for MongrelDB - a fast embedded+server database with SQL, vector search, full-text search, and AI-native retrieval.",
     "type": "library",
     "license": "MIT OR Apache-2.0",
