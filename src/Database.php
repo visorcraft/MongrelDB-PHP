@@ -278,6 +278,19 @@ final class Database
     }
 
     /**
+     * Start a hybrid search builder (POST /kit/search).
+     *
+     * Multi-retriever fusion + optional exact rerank — the scored counterpart
+     * to {@see query()}. Same wire format as the Rust/Go/NAPI clients.
+     *
+     * @param string $table Table name
+     */
+    public function search(string $table): SearchBuilder
+    {
+        return new SearchBuilder($this->client, $table);
+    }
+
+    /**
      * Execute a SQL statement and return decoded result rows.
      *
      * Requests JSON output from the server (`format: json`). The server returns
