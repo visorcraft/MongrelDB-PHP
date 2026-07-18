@@ -636,8 +636,20 @@ final class Database
      *
      * @return array<int,mixed>
      */
+    /**
+     * Convert associative [col_id => val] to flat [col_id, val, ...] in
+     * ascending column-id order. Stable ordering is required for idempotency
+     * keys: the server hashes the request payload, and unordered array
+     * iteration would make two commits of the same cells look like a reuse
+     * mismatch.
+     *
+     * @param array<int,mixed> $cells
+     *
+     * @return array<int,mixed>
+     */
     private function cellsToFlat(array $cells): array
     {
+        ksort($cells, SORT_NUMERIC);
         $flat = [];
         foreach ($cells as $colId => $value) {
             $flat[] = $colId;
