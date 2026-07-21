@@ -7,5 +7,5 @@ namespace Visorcraft\MongrelDB;
 /** Client library version (aligned with the MongrelDB train). */
 final class Version
 {
-    public const string STRING = '0.61.1';
+    public const string STRING = '0.62.0';
 }
