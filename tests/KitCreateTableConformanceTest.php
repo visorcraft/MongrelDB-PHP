@@ -134,7 +134,8 @@ final class KitCreateTableConformanceTest extends TestCase
             ['name' => 'ann', 'column_id' => 2, 'kind' => 'ann',
                 'predicate' => 'embedding IS NOT NULL',
                 'options' => ['ann' => ['m' => 24, 'ef_construction' => 96,
-                    'ef_search' => 48, 'quantization' => 'dense']]],
+                    'ef_search' => 48, 'quantization' => 'dense', 'algorithm' => 'diskann',
+                    'diskann' => ['r' => 64, 'l' => 128, 'beam_width' => 8, 'alpha' => 120]]]],
             ['name' => 'range', 'column_id' => 1, 'kind' => 'learned_range'],
             ['name' => 'minhash', 'column_id' => 1, 'kind' => 'minhash'],
             ['name' => 'sparse', 'column_id' => 1, 'kind' => 'sparse'],
@@ -148,6 +149,8 @@ final class KitCreateTableConformanceTest extends TestCase
             array_column($body['indexes'], 'kind'),
         );
         $this->assertSame('dense', $body['indexes'][2]['options']['ann']['quantization']);
+        $this->assertSame('diskann', $body['indexes'][2]['options']['ann']['algorithm']);
+        $this->assertSame(64, $body['indexes'][2]['options']['ann']['diskann']['r']);
         $this->assertSame('embedding IS NOT NULL', $body['indexes'][2]['predicate']);
     }
 }
