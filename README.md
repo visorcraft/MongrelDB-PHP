@@ -263,7 +263,7 @@ server as `ConstraintException` with `$e->errorCode === 'CHECK_VIOLATION'`.
 | `earliestRetainedEpoch(): int` | Oldest epoch still queryable with `AS OF EPOCH` |
 | `setHistoryRetentionEpochs(int $epochs): array` | Set the history-retention window; requires admin |
 | `tables(): array` | List table names |
-| `createTable(string $name, array $columns, array $constraints = []): int` | Create a table |
+| `createTable(string $name, array $columns, array $constraints = [], array $indexes = []): int` | Create a table with all index definitions |
 | `dropTable(string $name): void` | Drop a table |
 | `count(string $table): int` | Row count |
 | `put(string $table, array $cells, ?string $idempotencyKey): array` | Insert a row |

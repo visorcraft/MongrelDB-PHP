@@ -128,7 +128,7 @@ final class Database
      *
      * @return int Table ID
      */
-    public function createTable(string $name, array $columns, array $constraints = []): int
+    public function createTable(string $name, array $columns, array $constraints = [], array $indexes = []): int
     {
         $payload = [
             'name' => $name,
@@ -136,6 +136,9 @@ final class Database
         ];
         if ($constraints !== []) {
             $payload['constraints'] = $constraints;
+        }
+        if ($indexes !== []) {
+            $payload['indexes'] = $indexes;
         }
         $response = $this->client->post('/kit/create_table', $payload);
         $data = $response->json();

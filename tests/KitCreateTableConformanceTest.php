@@ -117,4 +117,37 @@ final class KitCreateTableConformanceTest extends TestCase
             $this->assertArrayNotHasKey('default_value', $column);
         }
     }
+
+    #[Test]
+    public function create_table_preserves_all_indexes_and_embedding_source(): void
+    {
+        $db = $this->recordingDatabase($captured);
+        $columns = [
+            ['id' => 1, 'name' => 'id', 'ty' => 'int64', 'primary_key' => true],
+            ['id' => 2, 'name' => 'embedding', 'ty' => 'embedding(384)',
+                'embedding_source' => ['kind' => 'configured_model', 'provider_id' => 'docs',
+                    'model_id' => 'model', 'model_version' => '1']],
+        ];
+        $indexes = [
+            ['name' => 'bm', 'column_id' => 1, 'kind' => 'bitmap'],
+            ['name' => 'fm', 'column_id' => 1, 'kind' => 'fm_index'],
+            ['name' => 'ann', 'column_id' => 2, 'kind' => 'ann',
+                'predicate' => 'embedding IS NOT NULL',
+                'options' => ['ann' => ['m' => 24, 'ef_construction' => 96,
+                    'ef_search' => 48, 'quantization' => 'dense']]],
+            ['name' => 'range', 'column_id' => 1, 'kind' => 'learned_range'],
+            ['name' => 'minhash', 'column_id' => 1, 'kind' => 'minhash'],
+            ['name' => 'sparse', 'column_id' => 1, 'kind' => 'sparse'],
+        ];
+
+        $this->assertSame(7, $db->createTable('search_docs', $columns, [], $indexes));
+        $body = json_decode($captured['body'], true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame('configured_model', $body['columns'][1]['embedding_source']['kind']);
+        $this->assertSame(
+            ['bitmap', 'fm_index', 'ann', 'learned_range', 'minhash', 'sparse'],
+            array_column($body['indexes'], 'kind'),
+        );
+        $this->assertSame('dense', $body['indexes'][2]['options']['ann']['quantization']);
+        $this->assertSame('embedding IS NOT NULL', $body['indexes'][2]['predicate']);
+    }
 }
