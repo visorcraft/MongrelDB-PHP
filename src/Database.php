@@ -294,6 +294,68 @@ final class Database
     }
 
     /**
+     * Text → embed under active semantic identity → ANN retrieve (POST /kit/retrieve_text, 0.64+).
+     *
+     * @param array{k?:int,deadline_ms?:int,max_work?:int} $options
+     *
+     * @return array{hits:list<array<string,mixed>>,provenance:array<string,mixed>}
+     */
+    public function retrieveText(string $table, int $embeddingColumn, string $text, array $options = []): array
+    {
+        $body = [
+            'table' => $table,
+            'embedding_column' => $embeddingColumn,
+            'text' => $text,
+        ];
+        if (isset($options['k'])) {
+            $body['k'] = $options['k'];
+        }
+        if (isset($options['deadline_ms'])) {
+            $body['deadline_ms'] = $options['deadline_ms'];
+        }
+        if (isset($options['max_work'])) {
+            $body['max_work'] = $options['max_work'];
+        }
+        $response = $this->client->post('/kit/retrieve_text', $body);
+        $json = json_decode($response->body, true);
+        if (!is_array($json)) {
+            return ['hits' => [], 'provenance' => []];
+        }
+
+        return [
+            'hits' => is_array($json['hits'] ?? null) ? $json['hits'] : [],
+            'provenance' => is_array($json['provenance'] ?? null) ? $json['provenance'] : [],
+        ];
+    }
+
+    /**
+     * Retained SQL execution status for durable recovery (GET /queries/{query_id}).
+     */
+    public function queryStatus(string $queryId): QueryStatus
+    {
+        $response = $this->client->get('/queries/' . rawurlencode($queryId));
+        $json = json_decode($response->body, true);
+        if (!is_array($json)) {
+            throw new Exceptions\MongrelDBException('query status response was not JSON object');
+        }
+
+        return QueryStatus::fromArray($json);
+    }
+
+    /**
+     * Request cancellation of a running SQL query (POST /queries/{query_id}/cancel).
+     *
+     * @return array<string,mixed>
+     */
+    public function cancelQuery(string $queryId): array
+    {
+        $response = $this->client->post('/queries/' . rawurlencode($queryId) . '/cancel', new \stdClass());
+        $json = json_decode($response->body, true);
+
+        return is_array($json) ? $json : [];
+    }
+
+    /**
      * Execute a SQL statement and return decoded result rows.
      *
      * Requests JSON output from the server (`format: json`). The server returns
